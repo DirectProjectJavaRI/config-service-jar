@@ -57,7 +57,7 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>         
-        </dependency>				
+        </dependency>      			
 		<dependency>
 		    <groupId>com.fasterxml.jackson.core</groupId>
 		    <artifactId>jackson-databind</artifactId>
@@ -194,6 +194,30 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<!-- Spring is not very good at finding Entity objects in jar files that are nested
+				     in jar files.  This will explode out the contents of the org.nhind library at runtime
+				     so the entity objects can be found and managed
+			    -->
+			    <configuration>
+			        <requiresUnpack>
+			            <dependency>
+			                <groupId>org.nhind</groupId>
+			                <artifactId>config-store</artifactId>
+			            </dependency>
+			            <dependency>
+			                <groupId>org.nhind</groupId>
+			                <artifactId>config-service-jar</artifactId>
+			            </dependency>			            
+			        </requiresUnpack>
+			        <jvmArguments>
+		               -Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005
+		            </jvmArguments>
+			        
+			    </configuration>				
+			</plugin>			
 			<!--  for releases only 
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
