@@ -15,6 +15,7 @@ import java.util.Iterator;
 
 import org.apache.commons.io.FileUtils;
 import org.junit.Test;
+import org.nhindirect.common.cert.Thumbprint;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
@@ -23,7 +24,6 @@ import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.model.utils.CertUtils.CertContainer;
 import org.nhindirect.config.store.dao.CertificateDao;
-import org.nhindirect.stagent.cert.Thumbprint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;

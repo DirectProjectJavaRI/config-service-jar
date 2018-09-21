@@ -30,11 +30,11 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.nhindirect.common.cert.Thumbprint;
 import org.nhindirect.config.model.Certificate;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.model.utils.CertUtils.CertContainer;
 import org.nhindirect.config.resources.util.EntityModelConversion;
-import org.nhindirect.config.store.Thumbprint;
 import org.nhindirect.config.store.dao.CertificateDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;

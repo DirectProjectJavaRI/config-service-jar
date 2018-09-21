@@ -31,9 +31,9 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.nhindirect.common.cert.Thumbprint;
 import org.nhindirect.config.model.Anchor;
 import org.nhindirect.config.resources.util.EntityModelConversion;
-import org.nhindirect.config.store.Thumbprint;
 import org.nhindirect.config.store.dao.AnchorDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;

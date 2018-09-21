@@ -54,6 +54,9 @@ import org.apache.commons.logging.LogFactory;
 import org.bouncycastle.cms.CMSProcessableByteArray;
 import org.bouncycastle.cms.CMSSignedData;
 import org.bouncycastle.cms.SignerInformation;
+import org.nhindirect.common.crypto.CryptoExtensions;
+import org.nhindirect.common.options.OptionsManager;
+import org.nhindirect.common.options.OptionsParameter;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
 import org.nhindirect.config.store.BundleRefreshError;
 import org.nhindirect.config.store.BundleThumbprint;
@@ -61,9 +64,6 @@ import org.nhindirect.config.store.ConfigurationStoreException;
 import org.nhindirect.config.store.TrustBundle;
 import org.nhindirect.config.store.TrustBundleAnchor;
 import org.nhindirect.config.store.dao.TrustBundleDao;
-import org.nhindirect.stagent.CryptoExtensions;
-import org.nhindirect.stagent.options.OptionsManager;
-import org.nhindirect.stagent.options.OptionsParameter;
 
 /**
  * Camel based implementation of the {@linkplain BundleRefreshProcessor} interface.
