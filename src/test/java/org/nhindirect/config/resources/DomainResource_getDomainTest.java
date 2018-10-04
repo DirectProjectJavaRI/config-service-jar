@@ -14,8 +14,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
-
-import org.nhindirect.config.store.dao.DomainDao;
+import org.nhindirect.config.repository.DomainRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -159,10 +158,10 @@ public class DomainResource_getDomainTest extends SpringBaseTest
 				{
 					super.setupMocks();
 
-					DomainDao mockDAO = mock(DomainDao.class);
-					doThrow(new RuntimeException()).when(mockDAO).getDomainByName(eq("test.com"));
+					DomainRepository mockDAO = mock(DomainRepository.class);
+					doThrow(new RuntimeException()).when(mockDAO).findByDomainNameIgnoreCase(eq("test.com"));
 					
-					domainService.setDomainDao(mockDAO);
+					domainService.setDomainRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -175,7 +174,7 @@ public class DomainResource_getDomainTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				domainService.setDomainDao(domainDao);
+				domainService.setDomainRepository(domainRepo);
 			}
 			
 			

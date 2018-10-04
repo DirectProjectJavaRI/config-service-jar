@@ -8,14 +8,13 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
 import java.util.Collection;
 
 import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
-import org.nhindirect.config.store.dao.SettingDao;
+import org.nhindirect.config.repository.SettingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -93,7 +92,7 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					Collection<org.nhindirect.config.store.Setting> retrievedSettings = settingDao.getAll();
+					Collection<org.nhindirect.config.store.Setting> retrievedSettings = settingRepo.findAll();
 					
 					assertNotNull(retrievedSettings);
 					assertEquals(0, retrievedSettings.size());
@@ -136,10 +135,10 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 					{
 						super.setupMocks();
 
-						SettingDao mockDAO = mock(SettingDao.class);
-						doThrow(new RuntimeException()).when(mockDAO).getByNames(Arrays.asList("setting1"));
+						SettingRepository mockDAO = mock(SettingRepository.class);
+						doThrow(new RuntimeException()).when(mockDAO).findByNameIgnoreCase(eq("setting1"));
 						
-						settingService.setSettingDao(mockDAO);
+						settingService.setSettingRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -152,7 +151,7 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 				{
 					super.tearDownMocks();
 					
-					settingService.setSettingDao(settingDao);
+					settingService.setSettingRepository(settingRepo);
 				}	
 				
 				protected Setting getSettingToAdd()
@@ -190,12 +189,12 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 					{
 						super.setupMocks();
 
-						SettingDao mockDAO = mock(SettingDao.class);
+						SettingRepository mockDAO = mock(SettingRepository.class);
 						org.nhindirect.config.store.Setting setting = new org.nhindirect.config.store.Setting();
-						when(mockDAO.getByNames(Arrays.asList("setting1"))).thenReturn(Arrays.asList(setting));
-						doThrow(new RuntimeException()).when(mockDAO).delete(eq(Arrays.asList("setting1")));
+						when(mockDAO.findByNameIgnoreCase(eq("setting1"))).thenReturn(setting);
+						doThrow(new RuntimeException()).when(mockDAO).deleteByNameIgnoreCase(eq("setting1"));
 						
-						settingService.setSettingDao(mockDAO);
+						settingService.setSettingRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -208,7 +207,7 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 				{
 					super.tearDownMocks();
 					
-					settingService.setSettingDao(settingDao);
+					settingService.setSettingRepository(settingRepo);
 				}	
 				
 				protected Setting getSettingToAdd()

@@ -23,19 +23,23 @@ package org.nhindirect.config.resources;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.common.cert.Thumbprint;
+import org.nhindirect.common.crypto.KeyStoreProtectionManager;
 import org.nhindirect.config.model.Certificate;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.model.utils.CertUtils.CertContainer;
+import org.nhindirect.config.repository.CertificateRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
-import org.nhindirect.config.store.dao.CertificateDao;
+import org.nhindirect.config.store.util.CertificateUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -62,7 +66,9 @@ public class CertificateResource extends ProtectedResource
 {	
     private static final Log log = LogFactory.getLog(CertificateResource.class);
     
-    protected CertificateDao certDao;
+    protected CertificateRepository certRepo;
+    
+    private KeyStoreProtectionManager kspMgr;
     
     /**
      * Constructor
@@ -73,13 +79,19 @@ public class CertificateResource extends ProtectedResource
 	}
     
     /**
-     * Sets the certificate Dao.  Auto populate by Spring
-     * @param certDao The certificate Dao
+     * Sets the certificate repository.  Auto populate by Spring
+     * @param certRepo The certificate repository
      */
     @Autowired
-    public void setCertificateDao(CertificateDao certDao) 
+    public void setCertificateRepository(CertificateRepository certRepo) 
     {
-        this.certDao = certDao;
+        this.certRepo = certRepo;
+    }
+    
+    @Autowired(required = false)
+    public void setKeyStoreProtectionMgr(KeyStoreProtectionManager kspMgr) 
+    {
+        this.kspMgr = kspMgr;
     }
     
     /**
@@ -107,7 +119,11 @@ public class CertificateResource extends ProtectedResource
     	
     	try
     	{
-    		retCertificates = certDao.list(owner);
+    		if (StringUtils.isEmpty(owner))
+    			retCertificates = certRepo.findAll();
+    		else
+    			retCertificates = certRepo.findByOwnerIgnoreCase(owner);
+    		
     		if (retCertificates.isEmpty())
     			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -118,7 +134,11 @@ public class CertificateResource extends ProtectedResource
     	}
     	
     	final Collection<Certificate> modelCerts = new ArrayList<Certificate>();
-    	retCertificates.forEach(cert-> modelCerts.add(EntityModelConversion.toModelCertificate(cert)));
+    	retCertificates.forEach(cert-> 
+    	{
+    		CertificateUtils.stripP12Protection(cert, this.kspMgr);
+    		modelCerts.add(EntityModelConversion.toModelCertificate(cert));
+    	});
 
 		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelCerts);  	
     }  
@@ -134,13 +154,34 @@ public class CertificateResource extends ProtectedResource
     public ResponseEntity<Certificate> getCertificatesByOwnerAndThumbprint(@PathVariable("owner") String owner, 
     		@PathVariable("thumbprint") String thumbprint)
     {
-    	org.nhindirect.config.store.Certificate retCertificate;
+    	org.nhindirect.config.store.Certificate retCertificate = null;
+    	
+    	List<org.nhindirect.config.store.Certificate> retCertificates = null;
     	
     	try
     	{
-    		retCertificate = certDao.load(owner, thumbprint);
-    		if (retCertificate == null)
+    		if (StringUtils.isEmpty(owner) && StringUtils.isEmpty(thumbprint))
+    			retCertificates = certRepo.findAll();
+            else if (!StringUtils.isEmpty(owner) && StringUtils.isEmpty(thumbprint))
+            	retCertificates = certRepo.findByOwnerIgnoreCase(owner);
+            else if (StringUtils.isEmpty(owner) && !StringUtils.isEmpty(thumbprint))
+            	retCertificates = certRepo.findByThumbprint(thumbprint);  		
+            else
+            {
+            	retCertificate = certRepo.findByOwnerIgnoreCaseAndThumbprint(owner, thumbprint);
+            	if (retCertificate != null)
+            		retCertificates = Arrays.asList(retCertificate);
+            }
+            	
+    		if (retCertificates == null || retCertificates.isEmpty())
+    		{
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
+    		}
+    			
+            for (org.nhindirect.config.store.Certificate cert : retCertificates)
+            	CertificateUtils.stripP12Protection(cert, this.kspMgr);
+
+            retCertificate = retCertificates.iterator().next();
     	}
     	catch (Exception e)
     	{
@@ -167,7 +208,7 @@ public class CertificateResource extends ProtectedResource
     	{
     		cont = CertUtils.toCertContainer(cert.getData());
     		
-    		if (certDao.load(cert.getOwner(), Thumbprint.toThumbprint(cont.getCert()).toString()) != null)
+    		if (certRepo.findByOwnerIgnoreCaseAndThumbprint(cert.getOwner(), Thumbprint.toThumbprint(cont.getCert()).toString()) != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -192,8 +233,9 @@ public class CertificateResource extends ProtectedResource
 				}
 			}
     		
-			final org.nhindirect.config.store.Certificate entCert = EntityModelConversion.toEntityCertificate(cert);
-    		certDao.save(entCert);
+			org.nhindirect.config.store.Certificate entCert = EntityModelConversion.toEntityCertificate(cert);
+			entCert = CertificateUtils.applyCertRepositoryAttributes(entCert, kspMgr);
+    		certRepo.save(entCert);
     		
     		final String requestUrl = request.getRequestURL().toString();
     		final URI uri = new UriTemplate("{requestUrl}/{certificate}").expand(requestUrl, "certificate/" + entCert.getOwner());
@@ -225,7 +267,7 @@ public class CertificateResource extends ProtectedResource
     		for (String id : idArray)
     			idList.add(Long.parseLong(id));
     		
-    		certDao.delete(idList);
+    		certRepo.deleteByIdIn(idList);
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -246,7 +288,7 @@ public class CertificateResource extends ProtectedResource
     {
     	try
     	{
-    		certDao.delete(owner);
+    		certRepo.deleteByOwnerIgnoreCase(owner);
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -255,5 +297,6 @@ public class CertificateResource extends ProtectedResource
     		log.error("Error removing certificates by owner.", e);
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
-    }    
+    }   
+
 }

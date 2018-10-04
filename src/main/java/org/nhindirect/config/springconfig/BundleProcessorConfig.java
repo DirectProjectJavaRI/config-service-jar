@@ -6,7 +6,7 @@ import org.nhindirect.config.processor.BundleCacheUpdateProcessor;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
 import org.nhindirect.config.processor.impl.DefaultBundleCacheUpdateProcessorImpl;
 import org.nhindirect.config.processor.impl.DefaultBundleRefreshProcessorImpl;
-import org.nhindirect.config.store.dao.TrustBundleDao;
+import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -23,20 +23,20 @@ public class BundleProcessorConfig
 	protected String refreshEndpoint;
 	
 	@Bean
-	public BundleRefreshProcessor bundleRefreshProcessor(TrustBundleDao trustBundleDao)
+	public BundleRefreshProcessor bundleRefreshProcessor(TrustBundleRepository trustBundleRepo)
 	{
 		final DefaultBundleRefreshProcessorImpl retVal = new DefaultBundleRefreshProcessorImpl();
-		retVal.setDao(trustBundleDao);
+		retVal.setRepository(trustBundleRepo);
 		
 		return retVal;
 	}
 	
 	@Bean 
-	public BundleCacheUpdateProcessor bundleCacheUpdateProcessor(BundleRefreshProcessor refreshProc, TrustBundleDao trustBundleDao)
+	public BundleCacheUpdateProcessor bundleCacheUpdateProcessor(BundleRefreshProcessor refreshProc, TrustBundleRepository trustBundleRepo)
 	{
 		DefaultBundleCacheUpdateProcessorImpl proc = new DefaultBundleCacheUpdateProcessorImpl();
 		proc.setRefreshProcessor(refreshProc);
-		proc.setDao(trustBundleDao);
+		proc.setRepository(trustBundleRepo);
 		
 		return proc;
 	}

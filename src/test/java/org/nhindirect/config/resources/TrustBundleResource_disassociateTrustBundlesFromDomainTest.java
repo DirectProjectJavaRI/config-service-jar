@@ -3,7 +3,6 @@ package org.nhindirect.config.resources;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -19,8 +18,8 @@ import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.model.TrustBundle;
-import org.nhindirect.config.store.dao.DomainDao;
-import org.nhindirect.config.store.dao.TrustBundleDao;
+import org.nhindirect.config.repository.DomainRepository;
+import org.nhindirect.config.repository.TrustBundleDomainReltnRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -164,7 +163,7 @@ public class TrustBundleResource_disassociateTrustBundlesFromDomainTest extends 
 				protected void doAssertions() throws Exception
 				{
 					final Collection<org.nhindirect.config.store.TrustBundleDomainReltn> bundleRelts =  
-							bundleDao.getTrustBundlesByDomain(domainDao.getDomainByName(getDomainNameToDisassociate()).getId());
+							bundleDomainRepo.findByDomain(domainRepo.findByDomainNameIgnoreCase(getDomainNameToAssociate()));
 					
 					assertTrue(bundleRelts.isEmpty());
 					
@@ -217,13 +216,11 @@ public class TrustBundleResource_disassociateTrustBundlesFromDomainTest extends 
 					try
 					{
 						super.setupMocks();
-						TrustBundleDao mockBundleDAO = mock(TrustBundleDao.class);
-						DomainDao mockDomainDAO = mock(DomainDao.class);
+						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						
-						doThrow(new RuntimeException()).when(mockDomainDAO).getDomainByName((String)any());
+						doThrow(new RuntimeException()).when(mockDomainDAO).findByDomainNameIgnoreCase((String)any());
 						
-						bundleService.setTrustBundleDao(mockBundleDAO);
-						bundleService.setDomainDao(mockDomainDAO);
+						bundleService.setDomainRepository(mockDomainDAO);
 					}
 					catch (Throwable t)
 					{
@@ -236,8 +233,7 @@ public class TrustBundleResource_disassociateTrustBundlesFromDomainTest extends 
 				{
 					super.tearDownMocks();
 					
-					bundleService.setTrustBundleDao(bundleDao);
-					bundleService.setDomainDao(domainDao);
+					bundleService.setDomainRepository(domainRepo);
 				}
 				
 				@Override
@@ -280,14 +276,14 @@ public class TrustBundleResource_disassociateTrustBundlesFromDomainTest extends 
 					try
 					{
 						super.setupMocks();
-						TrustBundleDao mockBundleDAO = mock(TrustBundleDao.class);
-						DomainDao mockDomainDAO = mock(DomainDao.class);
+						DomainRepository mockDomainDAO = mock(DomainRepository.class);
+						TrustBundleDomainReltnRepository reltnDAO = mock(TrustBundleDomainReltnRepository.class);
 						
-						when(mockDomainDAO.getDomainByName("test.com")).thenReturn(new org.nhindirect.config.store.Domain());
-						doThrow(new RuntimeException()).when(mockBundleDAO).disassociateTrustBundlesFromDomain(eq(0L));
+						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(new org.nhindirect.config.store.Domain());
+						doThrow(new RuntimeException()).when(reltnDAO).deleteByDomain((org.nhindirect.config.store.Domain)any());
 						
-						bundleService.setTrustBundleDao(mockBundleDAO);
-						bundleService.setDomainDao(mockDomainDAO);
+						bundleService.setDomainRepository(mockDomainDAO);
+						bundleService.setTrustBundleDomainReltnRepository(reltnDAO);
 					}
 					catch (Throwable t)
 					{
@@ -300,8 +296,8 @@ public class TrustBundleResource_disassociateTrustBundlesFromDomainTest extends 
 				{
 					super.tearDownMocks();
 					
-					bundleService.setTrustBundleDao(bundleDao);
-					bundleService.setDomainDao(domainDao);
+					bundleService.setDomainRepository(domainRepo);
+					bundleService.setTrustBundleDomainReltnRepository(bundleDomainRepo);
 				}
 				
 				@Override

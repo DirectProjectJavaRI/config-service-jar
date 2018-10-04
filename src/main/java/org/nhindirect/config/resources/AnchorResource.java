@@ -23,7 +23,6 @@ package org.nhindirect.config.resources;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -33,8 +32,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.common.cert.Thumbprint;
 import org.nhindirect.config.model.Anchor;
+import org.nhindirect.config.repository.AnchorRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
-import org.nhindirect.config.store.dao.AnchorDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -62,7 +61,7 @@ public class AnchorResource extends ProtectedResource
 {
     private static final Log log = LogFactory.getLog(AnchorResource.class);
     
-    protected AnchorDao anchorDao;
+    protected AnchorRepository anchorRepo;
     
     /**
      * Constructor
@@ -73,13 +72,13 @@ public class AnchorResource extends ProtectedResource
 	}
     
     /**
-     * Sets the anchor Dao.  Auto populated by Spring
-     * @param dao Anchor Dao
+     * Sets the anchor repository.  Auto populated by Spring
+     * @param anchorRepo Anchor repository
      */
     @Autowired
-    public void setAnchorDao(AnchorDao anchorDao) 
+    public void setAnchorRepository(AnchorRepository anchorRepo) 
     {
-        this.anchorDao = anchorDao;
+        this.anchorRepo = anchorRepo;
     }
     
     
@@ -103,7 +102,7 @@ public class AnchorResource extends ProtectedResource
     	
     	try
     	{
-    		retAnchors = anchorDao.list(Arrays.asList(owner));
+    		retAnchors = anchorRepo.findByOwnerIgnoreCase(owner);
     		if (retAnchors.isEmpty())
     			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -141,7 +140,7 @@ public class AnchorResource extends ProtectedResource
     	
     	try
     	{
-    		retAnchors = anchorDao.listAll();
+    		retAnchors = anchorRepo.findAll();
     		if (retAnchors.isEmpty())
     			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -176,7 +175,7 @@ public class AnchorResource extends ProtectedResource
     		final String thumbprint = (anchor.getThumbprint() == null || anchor.getThumbprint().isEmpty()) ?
     				Thumbprint.toThumbprint(anchor.getAnchorAsX509Certificate()).toString() : anchor.getThumbprint();
     				
-    		final Collection<org.nhindirect.config.store.Anchor> existingAnchors = anchorDao.list(Arrays.asList(anchor.getOwner()));
+    		final Collection<org.nhindirect.config.store.Anchor> existingAnchors = anchorRepo.findByOwnerIgnoreCase(anchor.getOwner());
     		
     		for (org.nhindirect.config.store.Anchor existingAnchor : existingAnchors)
     		{
@@ -192,7 +191,7 @@ public class AnchorResource extends ProtectedResource
     	
     	try
     	{
-    		anchorDao.add(EntityModelConversion.toEntityAnchor(anchor));
+    		anchorRepo.save(EntityModelConversion.toEntityAnchor(anchor));
     		
     		final String requestUrl = request.getRequestURL().toString();
     		final URI uri = new UriTemplate("{requestUrl}/{address}").expand(requestUrl, "anchor/" + anchor.getOwner());
@@ -222,7 +221,7 @@ public class AnchorResource extends ProtectedResource
     		for (String id : idArray)
     			idList.add(Long.parseLong(id));
     		
-    		anchorDao.delete(idList);
+    		anchorRepo.deleteByIdIn(idList);
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -243,7 +242,7 @@ public class AnchorResource extends ProtectedResource
     {
     	try
     	{
-    		anchorDao.delete(owner);
+    		anchorRepo.deleteByOwnerIgnoreCase(owner);
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}

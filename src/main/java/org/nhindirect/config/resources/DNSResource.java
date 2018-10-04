@@ -25,14 +25,15 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.model.DNSRecord;
+import org.nhindirect.config.repository.DNSRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
-import org.nhindirect.config.store.dao.DNSDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -47,7 +48,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
-
+import org.xbill.DNS.Type;
 
 /**
  * JAX-RS resource for managing DNS resources in the configuration service.
@@ -63,9 +64,9 @@ public class DNSResource extends ProtectedResource
     private static final Log log = LogFactory.getLog(DNSResource.class);
     
     /**
-     * DNS DAO is defined in the context XML file an injected by Spring
+     * DNS repository is injected by Spring
      */
-    protected DNSDao dnsDao;
+    protected DNSRepository dnsRepo;
     
     /**
      * Constructor
@@ -76,13 +77,13 @@ public class DNSResource extends ProtectedResource
 	}
     
     /**
-     * Sets the DNS Dao.  Auto populated by Spring
-     * @param dnsDao DNS Dao
+     * Sets the DNS repository.  Auto populated by Spring
+     * @param dnsRepo DNS repository
      */
     @Autowired
-    public void setDNSDao(DNSDao dnsDao) 
+    public void setDNSRepository(DNSRepository dnsRepo) 
     {
-        this.dnsDao = dnsDao;
+        this.dnsRepo = dnsRepo;
     }
      
     /**
@@ -101,11 +102,21 @@ public class DNSResource extends ProtectedResource
     	try
     	{
 	    	if (type > -1 && !name.isEmpty())
-	    		retRecords = dnsDao.get(name.endsWith(".") ? name : (name + "."), type);
+	    	{
+	    		if (type == Type.ANY)
+	    			retRecords = dnsRepo.findByNameIgnoreCase(name.endsWith(".") ? name : (name + "."));
+	    		else
+	    			retRecords = dnsRepo.findByNameIgnoreCaseAndType(name.endsWith(".") ? name : (name + "."), type);
+	    	}
 	    	else if (type > -1)
-	    		retRecords = dnsDao.get(type);
+	    	{
+	    		if (type == Type.ANY)
+	    			retRecords = dnsRepo.findAll();
+	    		else
+	    			retRecords = dnsRepo.findByType(type);
+	    	}
 	    	else if (!name.isEmpty())
-	    		retRecords = dnsDao.get(name.endsWith(".") ? name : (name + "."));
+	    		retRecords = dnsRepo.findByNameIgnoreCase(name.endsWith(".") ? name : (name + "."));
 	    	else
 	    	{
         		log.error("Either a DNS query name or type (or both) must be specified.");
@@ -139,13 +150,19 @@ public class DNSResource extends ProtectedResource
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> addDNSRecord(@RequestBody DNSRecord record, HttpServletRequest request)
     {
+    	if (record.getType() == Type.ANY)
+    	{
+    		log.error("Cannot add record with type ANY");
+    		return ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(noCache).build();
+    	}
+    		
     	if (!record.getName().endsWith("."))
     		record.setName(record.getName() + ".");
     	
     	// check to see if it already exists
     	try
     	{
-    		final Collection<org.nhindirect.config.store.DNSRecord> records = dnsDao.get(record.getName(), record.getType());
+    		final Collection<org.nhindirect.config.store.DNSRecord> records = dnsRepo.findByNameIgnoreCaseAndType(record.getName(), record.getType());
 
     			for (org.nhindirect.config.store.DNSRecord compareRecord : records)
     				// do a binary compare of the data
@@ -161,7 +178,7 @@ public class DNSResource extends ProtectedResource
     	
     	try
     	{
-    		dnsDao.add(Arrays.asList(EntityModelConversion.toEntityDNSRecord(record)));
+    		dnsRepo.save(EntityModelConversion.toEntityDNSRecord(record));
     		    		
     		final String requestUrl = request.getRequestURL().toString();
     		final URI uri = new UriTemplate("{requestUrl}/dns?{type}&name={name}").expand(requestUrl, record.getType(),  record.getName());
@@ -186,7 +203,7 @@ public class DNSResource extends ProtectedResource
     	// ensure it exists 
     	try
     	{
-    		if (dnsDao.get(updateRecord.getId()) == null)
+    		if (!dnsRepo.findById(updateRecord.getId()).isPresent())
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -200,7 +217,7 @@ public class DNSResource extends ProtectedResource
     	
     	try
     	{
-    		dnsDao.update(updateRecord.getId(), EntityModelConversion.toEntityDNSRecord(updateRecord));
+    		dnsRepo.save(EntityModelConversion.toEntityDNSRecord(updateRecord));
     		
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -220,14 +237,14 @@ public class DNSResource extends ProtectedResource
     public ResponseEntity<Void> removeDNSRecordsByIds(@PathVariable("ids") String ids)
     {
     	final String[] idArray = ids.split(",");
-    	final long[] idList = new long[idArray.length];
+    	final List<Long> idList = new ArrayList<>(idArray.length);
     	
     	try
     	{
-    		for (int i = 0; i < idArray.length; ++i)
-    			idList[i] = (Long.parseLong(idArray[i]));
+    		for (String id : idArray)
+    			idList.add(Long.parseLong(id));
     		
-    		dnsDao.remove(idList);
+    		dnsRepo.deleteByIdIn(idList);
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}

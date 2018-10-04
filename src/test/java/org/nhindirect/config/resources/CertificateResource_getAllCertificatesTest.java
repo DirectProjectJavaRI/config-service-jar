@@ -5,7 +5,6 @@ import static org.mockito.Mockito.mock;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
 
 import java.io.File;
 import java.security.cert.X509Certificate;
@@ -23,7 +22,7 @@ import org.nhindirect.config.model.Certificate;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.model.utils.CertUtils.CertContainer;
-import org.nhindirect.config.store.dao.CertificateDao;
+import org.nhindirect.config.repository.CertificateRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -241,10 +240,10 @@ public class CertificateResource_getAllCertificatesTest extends SpringBaseTest
 					{
 						super.setupMocks();
 
-						CertificateDao mockDAO = mock(CertificateDao.class);
-						doThrow(new RuntimeException()).when(mockDAO).list(eq((String)null));
+						CertificateRepository mockDAO = mock(CertificateRepository.class);
+						doThrow(new RuntimeException()).when(mockDAO).findAll();
 						
-						certService.setCertificateDao(mockDAO);
+						certService.setCertificateRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -257,7 +256,7 @@ public class CertificateResource_getAllCertificatesTest extends SpringBaseTest
 				{
 					super.tearDownMocks();
 					
-					certService.setCertificateDao(certDao);
+					certService.setCertificateRepository(certRepo);
 				}
 				
 				@Override

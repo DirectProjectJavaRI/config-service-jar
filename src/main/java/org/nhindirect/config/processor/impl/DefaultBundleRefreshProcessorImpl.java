@@ -28,7 +28,6 @@ import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.NoSuchAlgorithmException;
-import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -58,12 +57,11 @@ import org.nhindirect.common.crypto.CryptoExtensions;
 import org.nhindirect.common.options.OptionsManager;
 import org.nhindirect.common.options.OptionsParameter;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
+import org.nhindirect.config.repository.TrustBundleRepository;
 import org.nhindirect.config.store.BundleRefreshError;
 import org.nhindirect.config.store.BundleThumbprint;
-import org.nhindirect.config.store.ConfigurationStoreException;
 import org.nhindirect.config.store.TrustBundle;
 import org.nhindirect.config.store.TrustBundleAnchor;
-import org.nhindirect.config.store.dao.TrustBundleDao;
 
 /**
  * Camel based implementation of the {@linkplain BundleRefreshProcessor} interface.
@@ -89,13 +87,16 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	
     private static final Log log = LogFactory.getLog(DefaultBundleRefreshProcessorImpl.class);
 	
-	protected TrustBundleDao dao;
+    /**
+     * Trust bundle repo
+     */
+	protected TrustBundleRepository bundleRepo;
 	
     static
     {
-		Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
-		
-		initJVMParams();
+    	initJVMParams();
+    	
+    	CryptoExtensions.registerJCEProviders();
     }
 	
     /**
@@ -165,12 +166,12 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	}
 	
 	/**
-	 * Sets the trust bundle DAO for updating the bundle storage medium.
-	 * @param dao The trust bundle DAOP
+	 * Sets the trust bundle repository for updating the bundle storage medium.
+	 * @param bundleRepo The trust bundle repository
 	 */
-	public void setDao(TrustBundleDao dao)
+	public void setRepository(TrustBundleRepository bundleRepo)
 	{
-		this.dao = dao;
+		this.bundleRepo = bundleRepo;
 	}
 	
 	/**
@@ -205,7 +206,9 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			///CLOVER:OFF
 			catch (NoSuchAlgorithmException ex)
 			{
-				dao.updateLastUpdateError(bundle.getId(), processAttempStart, BundleRefreshError.INVALID_BUNDLE_FORMAT);
+				bundle.setLastRefreshAttempt(processAttempStart);
+				bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT);
+				bundleRepo.save(bundle);
 				log.error("Failed to generate downloaded bundle thumbprint ", ex);
 			}	
 			///CLOVER:ON
@@ -213,7 +216,10 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		
 		if (!update)
 		{
-			dao.updateLastUpdateError(bundle.getId(), processAttempStart, BundleRefreshError.SUCCESS);
+			bundle.setLastRefreshAttempt(processAttempStart);
+			bundle.setLastRefreshError(BundleRefreshError.SUCCESS);
+			bundleRepo.save(bundle);
+
 			return;
 		}
 		
@@ -246,12 +252,18 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			}
 
 			bundle.setTrustBundleAnchors(newAnchors);
-			dao.updateTrustBundleAnchors(bundle.getId(), processAttempStart, newAnchors, checkSum);
-			dao.updateLastUpdateError(bundle.getId(), processAttempStart, BundleRefreshError.SUCCESS);
+			bundle.setLastRefreshAttempt(processAttempStart);
+			bundle.setLastRefreshError(BundleRefreshError.SUCCESS);
+			bundle.setCheckSum(checkSum);
+			bundle.setLastSuccessfulRefresh(Calendar.getInstance());
+			bundleRepo.save(bundle);
+
 		}
-		catch (ConfigurationStoreException e) 
+		catch (Exception e) 
 		{ 
-			dao.updateLastUpdateError(bundle.getId(), processAttempStart, BundleRefreshError.INVALID_BUNDLE_FORMAT);
+			bundle.setLastRefreshAttempt(processAttempStart);
+			bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT);
+			bundleRepo.save(bundle);			
 			log.error("Failed to write updated bundle anchors to data store ", e);
 		}
     }
@@ -322,7 +334,9 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		    		
 		    		if (!sigVerified)
 		    		{
-						dao.updateLastUpdateError(existingBundle.getId(), processAttempStart, BundleRefreshError.UNMATCHED_SIGNATURE);
+		    			existingBundle.setLastRefreshAttempt(processAttempStart);
+		    			existingBundle.setLastRefreshError(BundleRefreshError.UNMATCHED_SIGNATURE);
+		    			bundleRepo.save(existingBundle);	
 						log.warn("Downloaded bundle signature did not match configured signing certificate.");
 						return null;
 		    		}
@@ -336,7 +350,9 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			}
 			catch (Exception e)
 			{
-				dao.updateLastUpdateError(existingBundle.getId(), processAttempStart, BundleRefreshError.INVALID_BUNDLE_FORMAT);
+    			existingBundle.setLastRefreshAttempt(processAttempStart);
+    			existingBundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT);
+    			bundleRepo.save(existingBundle);	
 				log.warn("Failed to extract anchors from downloaded bundle at URL " + existingBundle.getBundleURL());
 			}
 			finally
@@ -393,13 +409,19 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		///CLOVER:OFF
 		catch (SocketTimeoutException e)
 		{
-			dao.updateLastUpdateError(bundle.getId(), processAttempStart, BundleRefreshError.DOWNLOAD_TIMEOUT);
+			bundle.setLastRefreshAttempt(processAttempStart);
+			bundle.setLastRefreshError(BundleRefreshError.DOWNLOAD_TIMEOUT);
+			bundleRepo.save(bundle);	
+
 			log.warn("Failed to download bundle from URL " + bundle.getBundleURL(), e);
 		}
 		///CLOVER:ON
 		catch (Exception e)
 		{
-			dao.updateLastUpdateError(bundle.getId(), processAttempStart, BundleRefreshError.NOT_FOUND);
+			bundle.setLastRefreshAttempt(processAttempStart);
+			bundle.setLastRefreshError(BundleRefreshError.NOT_FOUND);
+			bundleRepo.save(bundle);				
+
 			log.warn("Failed to download bundle from URL " + bundle.getBundleURL(), e);
 		}
 		finally

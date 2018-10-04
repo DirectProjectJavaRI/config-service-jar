@@ -1,40 +1,27 @@
 package org.nhindirect.config;
 
-import static org.junit.Assert.assertEquals;
-
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
 
 import org.apache.commons.io.FileUtils;
 import org.junit.Before;
 import org.junit.runner.RunWith;
-import org.nhindirect.config.store.Address;
-import org.nhindirect.config.store.Anchor;
-import org.nhindirect.config.store.CertPolicy;
-import org.nhindirect.config.store.CertPolicyGroup;
-import org.nhindirect.config.store.Certificate;
-import org.nhindirect.config.store.DNSRecord;
-import org.nhindirect.config.store.Domain;
-import org.nhindirect.config.store.Setting;
-import org.nhindirect.config.store.TrustBundle;
-import org.nhindirect.config.store.dao.AddressDao;
-import org.nhindirect.config.store.dao.AnchorDao;
-import org.nhindirect.config.store.dao.CertPolicyDao;
-import org.nhindirect.config.store.dao.CertificateDao;
-import org.nhindirect.config.store.dao.DNSDao;
-import org.nhindirect.config.store.dao.DomainDao;
-import org.nhindirect.config.store.dao.SettingDao;
-import org.nhindirect.config.store.dao.TrustBundleDao;
+import org.nhindirect.config.repository.AddressRepository;
+import org.nhindirect.config.repository.AnchorRepository;
+import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
+import org.nhindirect.config.repository.CertPolicyGroupRepository;
+import org.nhindirect.config.repository.CertPolicyRepository;
+import org.nhindirect.config.repository.CertificateRepository;
+import org.nhindirect.config.repository.DNSRepository;
+import org.nhindirect.config.repository.DomainRepository;
+import org.nhindirect.config.repository.SettingRepository;
+import org.nhindirect.config.repository.TrustBundleDomainReltnRepository;
+import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringRunner;
-import org.xbill.DNS.Type;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = TestApplication.class, webEnvironment = WebEnvironment.DEFINED_PORT)
@@ -47,31 +34,37 @@ public abstract class SpringBaseTest
 	protected TestRestTemplate testRestTemplate;
 	
 	@Autowired
-	protected AddressDao addressDao;
-	
-	@Autowired	
-	protected TrustBundleDao trustDao;
+	protected AddressRepository addressRepo;
 	
 	@Autowired
-	protected DomainDao domainDao;
+	protected TrustBundleRepository bundleRepo;	
 	
 	@Autowired
-	protected AnchorDao anchorDao;
+	protected TrustBundleDomainReltnRepository bundleDomainRepo;
 	
 	@Autowired
-	protected CertificateDao certDao;
+	protected DomainRepository domainRepo;
+	
+	@Autowired
+	protected AnchorRepository anchorRepo;
+	
+	@Autowired
+	protected CertificateRepository certRepo;
 	
 	@Autowired 
-	protected DNSDao dnsDao;
+	protected DNSRepository dnsRepo;
 	
 	@Autowired
-	protected SettingDao settingDao;
+	protected SettingRepository settingRepo;
 	
 	@Autowired
-	protected CertPolicyDao policyDao;
+	protected CertPolicyRepository policyRepo;
 	
 	@Autowired
-	protected TrustBundleDao bundleDao;	
+	protected CertPolicyGroupRepository policyGroupRepo;
+	
+	@Autowired
+	protected CertPolicyGroupDomainReltnRepository groupReltnRepo;
 	
 	@Before
 	public void setUp()
@@ -108,87 +101,27 @@ public abstract class SpringBaseTest
 	
 	protected void cleanDataStore() throws Exception
 	{		
-		// clean anchors
-		final List<Anchor> anchors = anchorDao.listAll();
+		anchorRepo.deleteAll();
 		
-		if (!anchors.isEmpty())
-		{
-			final List<Long> anchorIds = new ArrayList<Long>();
-			for (Anchor anchor : anchors)
-				anchorIds.add(anchor.getId());
-				
-			anchorDao.delete(anchorIds);
-		}
-		// clean domains and the trust bundle domain relationships
-		final List<Domain> domains = domainDao.listDomains(null, domainDao.count());
-		if (domains != null)
-		{
-			for (Domain domain : domains)
-			{
-				Collection<Address> addresses = addressDao.getByDomain(domain, null);
-				if (addresses != null)
-				{
-					for (Address address : addresses)
-					{
-						addressDao.delete(address.getEmailAddress());
-					}
-				}
-				
-				trustDao.disassociateTrustBundlesFromDomain(domain.getId());
-				domainDao.delete(domain.getId());
-
-			}
-		}
-		assertEquals(0, domainDao.count());
+		groupReltnRepo.deleteAll();
 		
-		//clean trust bundles
-		Collection<TrustBundle> bundles = trustDao.getTrustBundles();
-		for (TrustBundle bundle : bundles)
-			trustDao.deleteTrustBundles(new long[] {bundle.getId()});
+		addressRepo.deleteAll();
 		
-		bundles = trustDao.getTrustBundles();
-		assertEquals(0, bundles.size());
+		bundleDomainRepo.deleteAll();
 		
-		// clean certificates
-		final List<Certificate> certs = certDao.list((String)null);
-		if (!certs.isEmpty())
-		{
-			for (Certificate cert : certs)
-			{
-				certDao.delete(cert.getOwner());
-			}
-		}
+		bundleRepo.deleteAll();
 		
-		// clean DNS records
-		final Collection<DNSRecord> records = dnsDao.get(Type.ANY);
-		if (!records.isEmpty())
-		{
-			for (DNSRecord record : records)
-				dnsDao.remove(record.getId());
-		}
+		domainRepo.deleteAll();
 		
-		// clean settings
-		final Collection<Setting> settings = settingDao.getAll();
-		if (!settings.isEmpty())
-		{
-			for (Setting setting : settings)
-				settingDao.delete(Arrays.asList(setting.getName()));
-		}	
+		policyGroupRepo.deleteAll();
 		
-		// clean policies
-		final Collection<CertPolicy> policies = policyDao.getPolicies();
-		if (!policies.isEmpty())
-		{
-			for (CertPolicy policy : policies)
-				policyDao.deletePolicies(new long[] {policy.getId()});
-		}
+		policyRepo.deleteAll();
 		
-		// clean policy groups
-		final Collection<CertPolicyGroup> groups = policyDao.getPolicyGroups();
-		if (!groups.isEmpty())
-		{
-			for (CertPolicyGroup group : groups)
-				policyDao.deletePolicyGroups(new long[] {group.getId()});
-		}		
+		certRepo.deleteAll();
+		
+		dnsRepo.deleteAll();
+		
+		settingRepo.deleteAll();
+	
 	}
 }

@@ -23,7 +23,7 @@ import org.nhindirect.config.model.Certificate;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.model.utils.CertUtils.CertContainer;
-import org.nhindirect.config.store.dao.CertificateDao;
+import org.nhindirect.config.repository.CertificateRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -281,10 +281,10 @@ public class CertificateResource_getCertificatesByOwnerAndThumbprintTest extends
 						super.setupMocks();
 						
 
-						CertificateDao mockDAO = mock(CertificateDao.class);
-						doThrow(new RuntimeException()).when(mockDAO).load((String)any(), (String)any());
+						CertificateRepository mockDAO = mock(CertificateRepository.class);
+						doThrow(new RuntimeException()).when(mockDAO).findByOwnerIgnoreCaseAndThumbprint((String)any(), (String)any());
 						
-						certService.setCertificateDao(mockDAO);
+						certService.setCertificateRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -297,7 +297,7 @@ public class CertificateResource_getCertificatesByOwnerAndThumbprintTest extends
 				{
 					super.tearDownMocks();
 					
-					certService.setCertificateDao(certDao);
+					certService.setCertificateRepository(certRepo);
 				}
 				
 				@Override

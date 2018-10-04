@@ -14,7 +14,7 @@ import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
-import org.nhindirect.config.store.dao.SettingDao;
+import org.nhindirect.config.repository.SettingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
@@ -157,10 +157,10 @@ public class SettingResource_getAllSettingsTest extends SpringBaseTest
 					{
 						super.setupMocks();
 
-						SettingDao mockDAO = mock(SettingDao.class);
-						doThrow(new RuntimeException()).when(mockDAO).getAll();
+						SettingRepository mockDAO = mock(SettingRepository.class);
+						doThrow(new RuntimeException()).when(mockDAO).findAll();
 						
-						settingService.setSettingDao(mockDAO);
+						settingService.setSettingRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -173,7 +173,7 @@ public class SettingResource_getAllSettingsTest extends SpringBaseTest
 				{
 					super.tearDownMocks();
 					
-					settingService.setSettingDao(settingDao);
+					settingService.setSettingRepository(settingRepo);
 				}
 				
 				@Override

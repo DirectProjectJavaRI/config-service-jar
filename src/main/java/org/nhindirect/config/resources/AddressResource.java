@@ -31,13 +31,14 @@ import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.model.Address;
+import org.nhindirect.config.repository.AddressRepository;
+import org.nhindirect.config.repository.DomainRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
-import org.nhindirect.config.store.dao.AddressDao;
-import org.nhindirect.config.store.dao.DomainDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -62,14 +63,14 @@ public class AddressResource extends ProtectedResource
     private static final Log log = LogFactory.getLog(AddressResource.class);
     
     /**
-     * Address DAO is defined in the context XML file an injected by Spring
+     * Address repository is injected by Spring
      */
-    protected AddressDao dao;
+    protected AddressRepository addRepo;
   
     /**
-     * Domain DAO is defined in the context XML file an injected by Spring
+     * Domain DAO is njected by Spring
      */
-    protected DomainDao domainDao;
+    protected DomainRepository domainRepo;
     
     /**
      * Constructor
@@ -80,23 +81,23 @@ public class AddressResource extends ProtectedResource
 	}
     
     /**
-     * Sets the address Dao.  Auto populated by Spring
-     * @param dao Address Dao
+     * Sets the address repository.  Auto populated by Spring
+     * @param addRepo Address repository
      */
     @Autowired
-    public void setAddressDao(AddressDao dao) 
+    public void setAddressRepository(AddressRepository addRepo) 
     {
-        this.dao = dao;
+        this.addRepo = addRepo;
     }
     
     /**
-     * Sets the domain Dao.  Auto populate by Spring
-     * @param domainDao
+     * Sets the domain repository.  Auto populate by Spring
+     * @param domainRepo
      */
     @Autowired
-    public void setDomainDao(DomainDao domainDao) 
+    public void setDomainRepository(DomainRepository domainRepo) 
     {
-        this.domainDao = domainDao;
+        this.domainRepo = domainRepo;
     }
     
     /**
@@ -109,7 +110,7 @@ public class AddressResource extends ProtectedResource
     {   	
     	try
     	{
-    		org.nhindirect.config.store.Address retAddress = dao.get(address);
+    		org.nhindirect.config.store.Address retAddress = addRepo.findByEmailAddressIgnoreCase(address);
     		if (retAddress == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
@@ -135,7 +136,7 @@ public class AddressResource extends ProtectedResource
     	org.nhindirect.config.store.Domain domain = null;
     	try
     	{
-    		domain = domainDao.getDomainByName(domainName);
+    		domain = domainRepo.findByDomainNameIgnoreCase(domainName);
     		if (domain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -147,7 +148,7 @@ public class AddressResource extends ProtectedResource
     	
     	try
     	{
-    		final List<org.nhindirect.config.store.Address> addresses = dao.getByDomain(domain, null);
+    		final List<org.nhindirect.config.store.Address> addresses = addRepo.findByDomain(domain);
     		if (addresses == null || addresses.isEmpty())
     			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     		
@@ -181,7 +182,7 @@ public class AddressResource extends ProtectedResource
     	org.nhindirect.config.store.Domain domain;
     	try
     	{
-    		domain = domainDao.getDomainByName(address.getDomainName());
+    		domain = domainRepo.findByDomainNameIgnoreCase(address.getDomainName());
 	    	if (domain == null)
 	    		return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -194,7 +195,7 @@ public class AddressResource extends ProtectedResource
     	// check to see if it already exists
     	try
     	{
-    		if (dao.get(address.getEmailAddress()) != null)
+    		if (addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress()) != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -208,7 +209,7 @@ public class AddressResource extends ProtectedResource
     	
     	try
     	{
-    		dao.add(toAdd);
+    		addRepo.save(toAdd);
     		final String requestUrl = request.getRequestURL().toString();
     		final URI uri = new UriTemplate("{requestUrl}/{address}").expand(requestUrl, "address/" + address.getEmailAddress());
     		
@@ -238,7 +239,7 @@ public class AddressResource extends ProtectedResource
     	org.nhindirect.config.store.Domain domain;
     	try
     	{
-    		domain = domainDao.getDomainByName(address.getDomainName());
+    		domain = domainRepo.findByDomainNameIgnoreCase(address.getDomainName());
 	    	if (domain == null)
 	    		return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -252,7 +253,7 @@ public class AddressResource extends ProtectedResource
     	org.nhindirect.config.store.Address existingAdd = null;
     	try
     	{
-    		existingAdd = dao.get(address.getEmailAddress());
+    		existingAdd = addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress());
     		if (existingAdd == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -268,7 +269,7 @@ public class AddressResource extends ProtectedResource
     	
     	try
     	{
-    		dao.update(toAdd);
+    		addRepo.save(toAdd);
     		
     		return ResponseEntity.noContent().cacheControl(noCache).build();
     	}
@@ -285,13 +286,16 @@ public class AddressResource extends ProtectedResource
      * @param address The address to removed.
      * @return Returns a status of 200 if the address was removed or 404 if the address does not exists.
      */
-    @DeleteMapping(value="{address}")    
+    @DeleteMapping(value="{address}")  
+    @Transactional
     public ResponseEntity<Void> removedAddress(@PathVariable("address") String address)   
     {
     	// make sure it exists
+    	org.nhindirect.config.store.Address addr;
     	try
     	{
-    		if (dao.get(address) == null)
+    		addr = addRepo.findByEmailAddressIgnoreCase(address);
+    		if (addr == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -301,9 +305,27 @@ public class AddressResource extends ProtectedResource
     	}
     	
     	try
-    	{
-    		dao.delete(address);
+    	{    		
+    		org.nhindirect.config.store.Domain dom = domainRepo.findById(addr.getDomain().getId()).get();
     		
+    		org.nhindirect.config.store.Address addrToDelete = null;
+    		
+    		for (org.nhindirect.config.store.Address existingAddr : dom.getAddresses())
+    		{
+    			if (existingAddr.getId() == addr.getId())
+    			{
+    				addrToDelete = existingAddr;
+    				break;
+    			}
+    		}
+    		
+    		if (addrToDelete != null)
+    		{
+    			dom.getAddresses().remove(addrToDelete);
+    			domainRepo.save(dom);
+    		}
+    		addRepo.delete(addr);
+
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
     	catch (Exception e)

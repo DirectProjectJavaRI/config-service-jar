@@ -21,7 +21,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.Anchor;
 import org.nhindirect.config.model.EntityStatus;
-import org.nhindirect.config.store.dao.AnchorDao;
+import org.nhindirect.config.repository.AnchorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -110,7 +110,7 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				List<org.nhindirect.config.store.Anchor> anchors = anchorDao.listAll();
+				List<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
 				
 				assertNotNull(anchors);
 				assertEquals(2, anchors.size());
@@ -178,7 +178,7 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				List<org.nhindirect.config.store.Anchor> anchors = anchorDao.listAll();
+				List<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
 				
 				assertNotNull(anchors);
 				assertEquals(2, anchors.size());
@@ -246,7 +246,7 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				List<org.nhindirect.config.store.Anchor> anchors = anchorDao.listAll();
+				List<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
 				
 				assertNotNull(anchors);
 				assertEquals(2, anchors.size());
@@ -326,7 +326,6 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 		{
 			protected Collection<Anchor> anchors;
 		
-			@SuppressWarnings("unchecked")
 			@Override
 			protected void setupMocks()
 			{
@@ -334,10 +333,10 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 				{
 					super.setupMocks();
 					
-					AnchorDao mockDAO = mock(AnchorDao.class);
-					doThrow(new RuntimeException()).when(mockDAO).list((List<String>)any());
+					AnchorRepository mockDAO = mock(AnchorRepository.class);
+					doThrow(new RuntimeException()).when(mockDAO).findByOwnerIgnoreCase((String)any());
 					
-					anchorService.setAnchorDao(mockDAO);
+					anchorService.setAnchorRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -350,7 +349,7 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				anchorService.setAnchorDao(anchorDao);
+				anchorService.setAnchorRepository(anchorRepo);
 			}			
 			
 			@Override
@@ -402,10 +401,10 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 				{
 					super.setupMocks();
 
-					AnchorDao mockDAO = mock(AnchorDao.class);
-					doThrow(new RuntimeException()).when(mockDAO).add((org.nhindirect.config.store.Anchor)any());
+					AnchorRepository mockDAO = mock(AnchorRepository.class);
+					doThrow(new RuntimeException()).when(mockDAO).save((org.nhindirect.config.store.Anchor)any());
 					
-					anchorService.setAnchorDao(mockDAO);
+					anchorService.setAnchorRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -418,7 +417,7 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				anchorService.setAnchorDao(anchorDao);
+				anchorService.setAnchorRepository(anchorRepo);
 			}			
 			
 			@Override

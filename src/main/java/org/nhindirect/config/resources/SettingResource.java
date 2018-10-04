@@ -31,8 +31,8 @@ import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.model.Setting;
+import org.nhindirect.config.repository.SettingRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
-import org.nhindirect.config.store.dao.SettingDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -61,9 +61,9 @@ public class SettingResource extends ProtectedResource
     private static final Log log = LogFactory.getLog(SettingResource.class);
    
     /**
-     * Settings DAO is defined in the context XML file an injected by Spring
+     * Settings repository is injected by Spring
      */
-    protected SettingDao settingDao;
+    protected SettingRepository settingRepo;
     
     /**
      * Constructor
@@ -74,13 +74,13 @@ public class SettingResource extends ProtectedResource
 	}
     
     /**
-     * Sets the settings Dao.  Auto populated by Spring
-     * @param settingDao Settings Dao
+     * Sets the settings repository.  Auto populated by Spring
+     * @param settingRepo Settings repository
      */
     @Autowired
-    public void setSettingDao(SettingDao settingDao) 
+    public void setSettingRepository(SettingRepository settingRepo) 
     {
-        this.settingDao = settingDao;
+        this.settingRepo = settingRepo;
     }
     
     /**
@@ -94,7 +94,7 @@ public class SettingResource extends ProtectedResource
     	
     	try
     	{
-    		retSettings = settingDao.getAll();
+    		retSettings = settingRepo.findAll();
     		if (retSettings.isEmpty())
     			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -120,7 +120,7 @@ public class SettingResource extends ProtectedResource
     {    	
     	try
     	{
-    		final Collection<org.nhindirect.config.store.Setting> retSettings = settingDao.getByNames(Arrays.asList(name));
+    		final Collection<org.nhindirect.config.store.Setting> retSettings = settingRepo.findByNameIgnoreCaseIn(Arrays.asList(name.toUpperCase()));
     		if (retSettings.isEmpty())
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
@@ -147,11 +147,22 @@ public class SettingResource extends ProtectedResource
     public ResponseEntity<Void> addSetting(@PathVariable("name") String name, @PathVariable("value") String value, 
     		HttpServletRequest request)
     {    	
+    	if (name == null || name.isEmpty())
+    	{
+    		log.error("Name cannot be null or empty");
+    		return ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(noCache).build();	
+    	}
+    	
+       	if (value == null)
+    	{
+    		log.error("Value cannot be null");
+    		return ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(noCache).build();	
+    	}
+    	
     	// check to see if it already exists
     	try
     	{
-    		final Collection<org.nhindirect.config.store.Setting> retSettings = settingDao.getByNames(Arrays.asList(name));
-    		if (!retSettings.isEmpty())
+    		if (settingRepo.findByNameIgnoreCase(name) != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -162,7 +173,12 @@ public class SettingResource extends ProtectedResource
     	
     	try
     	{
-    		settingDao.add(name, value);
+    		
+    		
+    		final org.nhindirect.config.store.Setting addSetting = new org.nhindirect.config.store.Setting();
+    		addSetting.setName(name);
+    		addSetting.setValue(value);
+    		settingRepo.save(addSetting);
     		
     		final String requestUrl = request.getRequestURL().toString();
     		final URI uri = new UriTemplate("{requestUrl}/{name}").expand(requestUrl, "setting/" + name);
@@ -186,11 +202,13 @@ public class SettingResource extends ProtectedResource
     @PostMapping("{name}/{value}")  
     public ResponseEntity<Void> updateSetting(@PathVariable("name") String name, @PathVariable("value") String value)
     {    	
+    	
+    	org.nhindirect.config.store.Setting retSetting = null;
     	// make sure it exists
     	try
     	{
-    		final Collection<org.nhindirect.config.store.Setting> retSettings = settingDao.getByNames(Arrays.asList(name));
-    		if (retSettings.isEmpty())
+    		retSetting = settingRepo.findByNameIgnoreCase(name);
+    		if (settingRepo.findByNameIgnoreCase(name) == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -201,7 +219,8 @@ public class SettingResource extends ProtectedResource
     	
     	try
     	{
-    		settingDao.update(name, value);
+    		retSetting.setValue(value);
+    		settingRepo.save(retSetting);
     		
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -224,8 +243,7 @@ public class SettingResource extends ProtectedResource
     	// check to see if it already exists
     	try
     	{
-    		final Collection<org.nhindirect.config.store.Setting> retSettings = settingDao.getByNames(Arrays.asList(name));
-    		if (retSettings.isEmpty())
+    		if (settingRepo.findByNameIgnoreCase(name) == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -236,7 +254,7 @@ public class SettingResource extends ProtectedResource
     	
     	try
     	{
-    		settingDao.delete(Arrays.asList(name));
+    		settingRepo.deleteByNameIgnoreCase(name);
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}

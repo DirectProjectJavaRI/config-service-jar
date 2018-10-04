@@ -391,7 +391,7 @@ public class EntityModelConversion
     	else
     		retVal.setCheckSum(bundle.getCheckSum());
     	
-    	retVal.setCreateTime(bundle.getCreateTime());
+    	retVal.setCreateTime((bundle.getCreateTime() != null) ? bundle.getCreateTime() : Calendar.getInstance());
     	retVal.setId(bundle.getId());
     	retVal.setLastRefreshAttempt(bundle.getLastRefreshAttempt());
     	if (bundle.getLastRefreshError() != null)
@@ -439,7 +439,7 @@ public class EntityModelConversion
     	final org.nhindirect.config.store.CertPolicy retVal = new org.nhindirect.config.store.CertPolicy();
     	
     	retVal.setPolicyName(policy.getPolicyName());
-    	retVal.setCreateTime(policy.getCreateTime());
+    	retVal.setCreateTime((policy.getCreateTime() != null) ? policy.getCreateTime() : Calendar.getInstance());
     	if (policy.getLexicon() != null)
     		retVal.setLexicon(PolicyLexicon.valueOf(policy.getLexicon().toString()));
     	retVal.setPolicyData(policy.getPolicyData());
@@ -507,7 +507,7 @@ public class EntityModelConversion
     	}
     	
     	retVal.setPolicyGroupName(group.getPolicyGroupName());
-    	retVal.setCreateTime(group.getCreateTime());
+    	retVal.setCreateTime((group.getCreateTime() != null) ? group.getCreateTime() : Calendar.getInstance());
     	
     	retVal.setCertPolicyGroupReltn(reltns);
     	   	

@@ -14,7 +14,7 @@ import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicyGroup;
-import org.nhindirect.config.store.dao.CertPolicyDao;
+import org.nhindirect.config.repository.CertPolicyGroupRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -164,10 +164,10 @@ public class CertPolicyResource_getPolicyGroupsTest extends SpringBaseTest
 					{
 						super.setupMocks();
 						
-						CertPolicyDao mockDAO = mock(CertPolicyDao.class);
-						doThrow(new RuntimeException()).when(mockDAO).getPolicyGroups();
+						CertPolicyGroupRepository mockDAO = mock(CertPolicyGroupRepository.class);
+						doThrow(new RuntimeException()).when(mockDAO).findAll();
 						
-						certService.setCertPolicyDao(mockDAO);
+						certService.setCertPolicyGroupRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -180,7 +180,7 @@ public class CertPolicyResource_getPolicyGroupsTest extends SpringBaseTest
 				{
 					super.tearDownMocks();
 					
-					certService.setCertPolicyDao(policyDao);
+					certService.setCertPolicyGroupRepository(policyGroupRepo);
 				}	
 				
 				@Override

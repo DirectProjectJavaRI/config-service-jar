@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -20,7 +19,8 @@ import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
 import org.nhindirect.config.model.CertPolicyGroupUse;
 import org.nhindirect.config.model.CertPolicyUse;
-import org.nhindirect.config.store.dao.CertPolicyDao;
+import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
+import org.nhindirect.config.repository.CertPolicyGroupRepository;
 import org.nhindirect.policy.PolicyLexicon;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -399,10 +399,10 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 					{
 						super.setupMocks();
 
-						CertPolicyDao mockDAO = mock(CertPolicyDao.class);
-						doThrow(new RuntimeException()).when(mockDAO).getPolicyGroupByName((String)any());
+						CertPolicyGroupRepository mockDAO = mock(CertPolicyGroupRepository.class);
+						doThrow(new RuntimeException()).when(mockDAO).findByPolicyGroupNameIgnoreCase((String)any());
 						
-						certService.setCertPolicyDao(mockDAO);
+						certService.setCertPolicyGroupRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -427,7 +427,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 				{
 					super.tearDownMocks();
 					
-					certService.setCertPolicyDao(policyDao);
+					certService.setCertPolicyGroupRepository(policyGroupRepo);
 				}
 				
 				@Override
@@ -476,7 +476,8 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 					try
 					{
 						super.setupMocks();
-						CertPolicyDao mockDAO = mock(CertPolicyDao.class);
+						CertPolicyGroupRepository mockDAO = mock(CertPolicyGroupRepository.class);
+						CertPolicyGroupDomainReltnRepository mockReltn = mock(CertPolicyGroupDomainReltnRepository.class);
 						
 						final org.nhindirect.config.store.CertPolicy policy = new org.nhindirect.config.store.CertPolicy();
 						policy.setPolicyName("Policy1");
@@ -492,10 +493,11 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 						group.setPolicyGroupName("Group1");
 						group.setCertPolicyGroupReltn(Arrays.asList(reltn));
 						
-						when(mockDAO.getPolicyGroupByName((String)any())).thenReturn(group);
-						doThrow(new RuntimeException()).when(mockDAO).removePolicyUseFromGroup(eq(0L));
+						when(mockDAO.findByPolicyGroupNameIgnoreCase((String)any())).thenReturn(group);
+						doThrow(new RuntimeException()).when(mockDAO).save((org.nhindirect.config.store.CertPolicyGroup)any());
 						
-						certService.setCertPolicyDao(mockDAO);
+						certService.setCertPolicyGroupRepository(mockDAO);
+						certService.setCertPolicyGroupDomainReltnRepository(mockReltn);
 					}
 					catch (Throwable t)
 					{
@@ -520,7 +522,8 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 				{
 					super.tearDownMocks();
 					
-					certService.setCertPolicyDao(policyDao);
+					certService.setCertPolicyGroupRepository(policyGroupRepo);
+					certService.setCertPolicyGroupDomainReltnRepository(groupReltnRepo);
 				}
 				
 				@Override

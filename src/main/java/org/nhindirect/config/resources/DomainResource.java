@@ -27,16 +27,18 @@ import java.util.Collection;
 
 import javax.servlet.http.HttpServletRequest;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.model.Domain;
+import org.nhindirect.config.repository.AddressRepository;
+import org.nhindirect.config.repository.DomainRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
-import org.nhindirect.config.store.dao.AddressDao;
-import org.nhindirect.config.store.dao.DomainDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -62,14 +64,14 @@ public class DomainResource extends ProtectedResource
     private static final Log log = LogFactory.getLog(DomainResource.class);
 
     /**
-     * Address DAO is defined in the context XML file an injected by Spring
+     * Address repository is injected by Spring
      */
-    protected AddressDao addressDao;
+    protected AddressRepository addRepo;
     
     /**
-     * Domain DAO is defined in the context XML file an injected by Spring
+     * Domain repository is injected by Spring
      */
-    protected DomainDao domainDao;
+    protected DomainRepository domainRepo;
     
     /**
      * Constructor
@@ -80,23 +82,23 @@ public class DomainResource extends ProtectedResource
 	}
     
     /**
-     * Sets the address Dao.  Auto populated by Spring
-     * @param dao Address Dao
+     * Sets the address repository.  Auto populated by Spring
+     * @param addRepo Address repository
      */
     @Autowired
-    public void setAddressDao(AddressDao addressDao) 
+    public void setAddressRepository(AddressRepository addRepo) 
     {
-        this.addressDao = addressDao;
+        this.addRepo = addRepo;
     }
     
     /**
-     * Sets the domain Dao.  Auto populate by Spring
-     * @param domainDao The domain Dao.
+     * Sets the domain repository.  Auto populate by Spring
+     * @param domainRepo The domain repository.
      */
     @Autowired
-    public void setDomainDao(DomainDao domainDao) 
+    public void setDomainRepository(DomainRepository domainRepo) 
     {
-        this.domainDao = domainDao;
+        this.domainRepo = domainRepo;
     }
     
     /**
@@ -106,11 +108,12 @@ public class DomainResource extends ProtectedResource
      * not exist.
      */
     @GetMapping(value="{domain}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Transactional(readOnly=true)
     public ResponseEntity<Domain> getDomain(@PathVariable("domain") String domain)
     {   	
     	try
     	{
-    		org.nhindirect.config.store.Domain retDomain = domainDao.getDomainByName(domain);
+    		org.nhindirect.config.store.Domain retDomain = domainRepo.findByDomainNameIgnoreCase(domain);
     		if (retDomain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
@@ -131,6 +134,7 @@ public class DomainResource extends ProtectedResource
      * domains match the search parameters.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    @Transactional(readOnly=true)
     public ResponseEntity<Collection<Domain>> searchDomains(@RequestParam(name="domainName", defaultValue="") String domainName,
     		@RequestParam(name="entityStatus", defaultValue="")String entityStatus)
     {
@@ -149,10 +153,20 @@ public class DomainResource extends ProtectedResource
     		}
     	}
     	
+    	domainName = StringUtils.remove(domainName, '*');
+    	
     	// do the search
     	try
     	{
-    		Collection<org.nhindirect.config.store.Domain> domains = domainDao.searchDomain(domainName.isEmpty() ? null : domainName, status);
+    		Collection<org.nhindirect.config.store.Domain> domains = null;
+    		if (status == null && domainName.isEmpty())
+    			domains = domainRepo.findAll();
+    		else if (status == null)
+    			domains = domainRepo.findByDomainNameContainingIgnoreCase(domainName);
+    		else if (domainName.isEmpty())
+    			domains = domainRepo.findByStatus(status);
+    		else
+    			domains = domainRepo.findByDomainNameContainingIgnoreCaseAndStatus(domainName, status);
 
     		if (domains.isEmpty())
     			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
@@ -183,7 +197,7 @@ public class DomainResource extends ProtectedResource
     	// check to see if it already exists
     	try
     	{
-    		if (domainDao.getDomainByName(domain.getDomainName()) != null)
+    		if (domainRepo.findByDomainNameIgnoreCase(domain.getDomainName()) != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -192,12 +206,26 @@ public class DomainResource extends ProtectedResource
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     	
-    	final org.nhindirect.config.store.Domain toDomain = EntityModelConversion.toEntityDomain(domain);
+    	org.nhindirect.config.store.Domain toDomain = EntityModelConversion.toEntityDomain(domain);
     	
     	try
     	{
-    		domainDao.add(toDomain);
+    		toDomain = domainRepo.save(toDomain);
 
+    		// set the postmaster address if one was sent
+    		if (domain.getPostmasterAddress() != null)
+    		{
+    			for (org.nhindirect.config.store.Address addr : toDomain.getAddresses())
+    			{
+    				if (addr.getEmailAddress().compareToIgnoreCase(domain.getPostmasterAddress().getEmailAddress()) == 0)
+    				{
+    					toDomain.setPostmasterAddressId(addr.getId());
+    					domainRepo.save(toDomain);
+    					break;
+    				}
+    			}
+    		}
+    			
     		final String requestUrl = request.getRequestURL().toString();
     		final URI uri = new UriTemplate("{requestUrl}/{domain}").expand(requestUrl, "domain/" + domain.getDomainName());
     		
@@ -223,7 +251,7 @@ public class DomainResource extends ProtectedResource
     	org.nhindirect.config.store.Domain existingDomain;
     	try
     	{
-    		existingDomain = domainDao.getDomainByName(domain.getDomainName());
+    		existingDomain = domainRepo.findByDomainNameIgnoreCase(domain.getDomainName());
 	    	if (existingDomain == null)
 	    		return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -262,7 +290,7 @@ public class DomainResource extends ProtectedResource
     	
     	try
     	{
-    		domainDao.update(toDomain);
+    		domainRepo.save(toDomain);
     		
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -285,7 +313,7 @@ public class DomainResource extends ProtectedResource
     	// make sure it exists
     	try
     	{
-    		if (domainDao.getDomainByName(domain) == null)
+    		if (domainRepo.findByDomainNameIgnoreCase(domain) == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -296,7 +324,7 @@ public class DomainResource extends ProtectedResource
     	
     	try
     	{
-    		domainDao.delete(domain);
+    		domainRepo.deleteByDomainNameIgnoreCase(domain);
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}

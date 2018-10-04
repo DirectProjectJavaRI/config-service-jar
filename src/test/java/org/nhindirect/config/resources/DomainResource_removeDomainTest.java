@@ -1,7 +1,6 @@
 package org.nhindirect.config.resources;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -15,7 +14,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
-import org.nhindirect.config.store.dao.DomainDao;
+import org.nhindirect.config.repository.DomainRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -102,7 +101,7 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				assertNull(domainDao.getDomainByName("@test.com"));
+				assertEquals(null,  domainRepo.findByDomainNameIgnoreCase("@test.com"));
 			}
 		}.perform();
 	}
@@ -157,10 +156,10 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 				{
 					super.setupMocks();
 
-					DomainDao mockDAO = mock(DomainDao.class);
-					doThrow(new RuntimeException()).when(mockDAO).getDomainByName(eq("test.com"));
+					DomainRepository mockDAO = mock(DomainRepository.class);
+					doThrow(new RuntimeException()).when(mockDAO).findByDomainNameIgnoreCase(eq("test.com"));
 					
-					domainService.setDomainDao(mockDAO);
+					domainService.setDomainRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -173,7 +172,7 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				domainService.setDomainDao(domainDao);
+				domainService.setDomainRepository(domainRepo);
 			}
 			
 			
@@ -212,11 +211,11 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 				{
 					super.setupMocks();
 
-					DomainDao mockDAO = mock(DomainDao.class);
-					when(mockDAO.getDomainByName((String)any())).thenReturn(new org.nhindirect.config.store.Domain());
-					doThrow(new RuntimeException()).when(mockDAO).delete(eq("test.com"));
+					DomainRepository mockDAO = mock(DomainRepository.class);
+					when(mockDAO.findByDomainNameIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.Domain());
+					doThrow(new RuntimeException()).when(mockDAO).deleteByDomainNameIgnoreCase(eq("test.com"));
 					
-					domainService.setDomainDao(mockDAO);
+					domainService.setDomainRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -229,7 +228,7 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				domainService.setDomainDao(domainDao);
+				domainService.setDomainRepository(domainRepo);
 			}
 			
 			

@@ -3,32 +3,31 @@ package org.nhindirect.config.processor.impl;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 
 import java.io.File;
-import java.util.Calendar;
-import java.util.Collection;
+
+import static org.mockito.Mockito.times;
+import static org.mockito.Matchers.any;
+
 
 import org.apache.commons.io.FileUtils;
+import org.junit.Before;
+import org.junit.Test;
+import org.nhindirect.config.repository.TrustBundleRepository;
 import org.nhindirect.config.store.BundleThumbprint;
 import org.nhindirect.config.store.ConfigurationStoreException;
 import org.nhindirect.config.store.TrustBundle;
-import org.nhindirect.config.store.TrustBundleAnchor;
-import org.nhindirect.config.store.dao.TrustBundleDao;
 
-import junit.framework.TestCase;
 
-public class DefaultBundleRefreshProcessorImpl_refreshBundleTest extends TestCase
+public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 {
-	protected TrustBundleDao dao;
+	protected TrustBundleRepository repo;
 	protected String filePrefix;
 	
-	@Override
+	@Before
 	public void setUp()
 	{
-		dao = mock(TrustBundleDao.class);
+		repo = mock(TrustBundleRepository.class);
 		
 		// check for Windows... it doens't like file://<drive>... turns it into FTP
 		File file = new File("./src/test/resources/bundles/signedbundle.p7b");
@@ -38,11 +37,11 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest extends TestCas
 			filePrefix = "file:///";
 	}
 	
-	@SuppressWarnings("unchecked")
+	@Test
 	public void testRefreshBundle_validBundle_noCheckSum_needsRefreshed_assertUpdateCalled() throws Exception
 	{
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setDao(dao);
+		processor.setRepository(repo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
@@ -51,14 +50,14 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest extends TestCas
 	
 		processor.refreshBundle(bundle);
 	
-		verify(dao, times(1)).updateTrustBundleAnchors(eq(bundle.getId()), (Calendar)any(), (Collection<TrustBundleAnchor>)any(), (String)any());
+		verify(repo, times(1)).save((TrustBundle)any());
 	}	
 	
-	@SuppressWarnings("unchecked")
+	@Test
 	public void testRefreshBundle_validBundle_unmatchedChecksum_needsRefreshed_assertUpdateCalled() throws Exception
 	{
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setDao(dao);
+		processor.setRepository(repo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
@@ -68,15 +67,14 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest extends TestCas
 	
 		processor.refreshBundle(bundle);
 	
-		verify(dao, times(1)).updateTrustBundleAnchors(eq(bundle.getId()), (Calendar)any(), (Collection<TrustBundleAnchor>)any(), (String)any());
+		verify(repo, times(1)).save((TrustBundle)any());
 	}		
 	
-	
-	@SuppressWarnings("unchecked")
+	@Test
 	public void testRefreshBundle_checkSumsMatch_assertUpdateNotCalled() throws Exception
 	{
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setDao(dao);
+		processor.setRepository(repo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		
@@ -90,14 +88,14 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest extends TestCas
 		
 		processor.refreshBundle(bundle);
 	
-		verify(dao, times(0)).updateTrustBundleAnchors(eq(bundle.getId()), (Calendar)any(), (Collection<TrustBundleAnchor>)any(), (String)any());
+		verify(repo, times(1)).save((TrustBundle)any());
 	}	
 	
-	@SuppressWarnings("unchecked")
+	@Test
 	public void testRefreshBundle_bundleNotFound_assertUpdateNotCalled() throws Exception
 	{
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setDao(dao);
+		processor.setRepository(repo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
@@ -106,14 +104,14 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest extends TestCas
 	
 		processor.refreshBundle(bundle);
 	
-		verify(dao, times(0)).updateTrustBundleAnchors(eq(bundle.getId()), (Calendar)any(), (Collection<TrustBundleAnchor>)any(), (String)any());
+		verify(repo, times(1)).save((TrustBundle)any());
 	}		
 	
-	@SuppressWarnings("unchecked")
+	@Test
 	public void testRefreshBundle_invalidBundle_assertUpdateNotCalled() throws Exception
 	{
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setDao(dao);
+		processor.setRepository(repo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
@@ -122,49 +120,25 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest extends TestCas
 	
 		processor.refreshBundle(bundle);
 	
-		verify(dao, times(0)).updateTrustBundleAnchors(eq(bundle.getId()), (Calendar)any(), (Collection<TrustBundleAnchor>)any(), (String)any());
+		verify(repo, times(1)).save((TrustBundle)any());
 	}	
 	
-	@SuppressWarnings("unchecked")
+	@Test(expected=ConfigurationStoreException.class)
 	public void testRefreshBundle_errorOnUpdate() throws Exception
 	{
 		
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setDao(dao);
+		processor.setRepository(repo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
 		File fl = new File("src/test/resources/bundles/signedbundle.p7b");
 		bundle.setBundleURL(filePrefix + fl.getAbsolutePath());
 	
-		doThrow(new ConfigurationStoreException("Just Passing Through")).when(dao).updateTrustBundleAnchors(eq(bundle.getId()), 
-				(Calendar)any(), (Collection<TrustBundleAnchor>)any(), (String)any());
-		
-		
+		doThrow(new ConfigurationStoreException("Just Passing Through")).when(repo).save((TrustBundle)any());
+
 		processor.refreshBundle(bundle);
-	
-		verify(dao, times(1)).updateTrustBundleAnchors(eq(bundle.getId()), (Calendar)any(), (Collection<TrustBundleAnchor>)any(), (String)any());
+
 	}
 	
-	/*
-	public void testGetBundleFromRealEndpoint() throws Exception
-	{
-		TrustBundleDao dao = mock(TrustBundleDao.class);
-		
-		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setDao(dao);
-		
-		TrustBundle bundle = new TrustBundle();
-		bundle.setBundleName("Test ABBI Bundle");
-		bundle.setBundleURL("https://secure.bluebuttontrust.org/p7b.ashx?id=d7a59811-ad48-e211-8bc3-78e3b5114607");
-		
-		processor.refreshBundle(bundle);
-		
-		processor.refreshBundle(bundle);
-		
-		bundle.setBundleURL("https://secure.bluebuttontrust.org/p7b.ashx?id=4d9daaf9-384a-e211-8bc3-78e3b5114607");
-		
-		processor.refreshBundle(bundle);
-	}
-	*/
 }

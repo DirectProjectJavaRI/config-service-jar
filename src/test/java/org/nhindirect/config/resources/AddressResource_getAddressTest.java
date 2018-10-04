@@ -13,7 +13,7 @@ import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
-import org.nhindirect.config.store.dao.AddressDao;
+import org.nhindirect.config.repository.AddressRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -53,7 +53,7 @@ public class AddressResource_getAddressTest  extends SpringBaseTest
 				final org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
 				domain.setDomainName(domainName);
 				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED);
-				domainDao.add(domain);
+				domainRepo.save(domain);
 				
 				if (addAddress != null)
 					addAddress.setDomainName(domainName);
@@ -187,10 +187,10 @@ public class AddressResource_getAddressTest  extends SpringBaseTest
 				{
 					super.setupMocks();
 
-					AddressDao mockDAO = mock(AddressDao.class);
-					doThrow(new RuntimeException()).when(mockDAO).get(eq("blowup@test.com"));
+					AddressRepository mockDAO = mock(AddressRepository.class);
+					doThrow(new RuntimeException()).when(mockDAO).findByEmailAddressIgnoreCase(eq("blowup@test.com"));
 					
-					addressService.setAddressDao(mockDAO);
+					addressService.setAddressRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -203,7 +203,7 @@ public class AddressResource_getAddressTest  extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				addressService.setAddressDao(addressDao);
+				addressService.setAddressRepository(addressRepo);
 			}
 			
 			

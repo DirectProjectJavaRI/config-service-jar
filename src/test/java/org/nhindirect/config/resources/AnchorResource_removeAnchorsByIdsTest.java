@@ -16,7 +16,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.Anchor;
 import org.nhindirect.config.model.EntityStatus;
-import org.nhindirect.config.store.dao.AnchorDao;
+import org.nhindirect.config.repository.AnchorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -131,7 +131,7 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 			@Override
 			protected Collection<Long> getIdsToRemove()
 			{
-				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorDao.listAll();
+				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
 				
 				final Collection<Long> ids = new ArrayList<Long>();
 				for (org.nhindirect.config.store.Anchor anchor : anchors)
@@ -143,7 +143,7 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorDao.listAll();
+				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
 				assertTrue(anchors.isEmpty());
 			}
 		}.perform();
@@ -193,7 +193,7 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 			@Override
 			protected Collection<Long> getIdsToRemove()
 			{
-				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorDao.listAll();
+				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
 				
 				final Collection<Long> ids = new ArrayList<Long>();
 
@@ -205,7 +205,7 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorDao.listAll();
+				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
 				assertEquals(1, anchors.size());
 			}
 		}.perform();
@@ -224,10 +224,10 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 				{
 					super.setupMocks();
 
-					AnchorDao mockDAO = mock(AnchorDao.class);
-					doThrow(new RuntimeException()).when(mockDAO).delete((List<Long>)any());
+					AnchorRepository mockDAO = mock(AnchorRepository.class);
+					doThrow(new RuntimeException()).when(mockDAO).deleteByIdIn((List<Long>)any());
 					
-					anchorService.setAnchorDao(mockDAO);
+					anchorService.setAnchorRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -246,7 +246,7 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				anchorService.setAnchorDao(anchorDao);
+				anchorService.setAnchorRepository(anchorRepo);
 			}
 			
 			@Override

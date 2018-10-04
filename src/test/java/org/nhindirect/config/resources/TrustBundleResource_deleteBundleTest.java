@@ -17,7 +17,7 @@ import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.TrustBundle;
-import org.nhindirect.config.store.dao.TrustBundleDao;
+import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -109,7 +109,7 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					assertNull(bundleDao.getTrustBundleByName("testBundle1"));
+					assertNull(bundleRepo.findByBundleNameIgnoreCase("testBundle1"));
 				}
 			}.perform();
 		}
@@ -154,10 +154,10 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 					{
 						super.setupMocks();
 						
-						TrustBundleDao mockDAO = mock(TrustBundleDao.class);
-						doThrow(new RuntimeException()).when(mockDAO).getTrustBundleByName(eq("testBundle1"));
+						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
+						doThrow(new RuntimeException()).when(mockDAO).findByBundleNameIgnoreCase(eq("testBundle1"));
 						
-						bundleService.setTrustBundleDao(mockDAO);
+						bundleService.setTrustBundleRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -170,7 +170,7 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 				{
 					super.tearDownMocks();
 					
-					bundleService.setTrustBundleDao(bundleDao);
+					bundleService.setTrustBundleRepository(bundleRepo);
 				}
 				
 				@Override
@@ -208,12 +208,12 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 					{
 						super.setupMocks();
 
-						TrustBundleDao mockDAO = mock(TrustBundleDao.class);
+						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
 						
-						when(mockDAO.getTrustBundleByName((String)any())).thenReturn(new org.nhindirect.config.store.TrustBundle());
-						doThrow(new RuntimeException()).when(mockDAO).deleteTrustBundles((long[])any());
+						when(mockDAO.findByBundleNameIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.TrustBundle());
+						doThrow(new RuntimeException()).when(mockDAO).deleteById((Long)any());
 						
-						bundleService.setTrustBundleDao(mockDAO);
+						bundleService.setTrustBundleRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -226,7 +226,7 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 				{
 					super.tearDownMocks();
 					
-					bundleService.setTrustBundleDao(bundleDao);
+					bundleService.setTrustBundleRepository(bundleRepo);
 				}
 				
 				@Override

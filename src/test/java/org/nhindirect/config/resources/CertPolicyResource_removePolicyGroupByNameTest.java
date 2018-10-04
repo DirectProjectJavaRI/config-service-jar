@@ -16,7 +16,7 @@ import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicyGroup;
-import org.nhindirect.config.store.dao.CertPolicyDao;
+import org.nhindirect.config.repository.CertPolicyGroupRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -110,7 +110,7 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					assertNull(policyDao.getPolicyGroupByName(getPolicyGroupToDelete()));
+					assertNull(policyRepo.findByPolicyNameIgnoreCase(getPolicyGroupToDelete()));
 				}
 			}.perform();
 		}
@@ -169,10 +169,10 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 					try
 					{
 						super.setupMocks();
-						CertPolicyDao mockDAO = mock(CertPolicyDao.class);
-						doThrow(new RuntimeException()).when(mockDAO).getPolicyGroupByName((String)any());
+						CertPolicyGroupRepository mockDAO = mock(CertPolicyGroupRepository.class);
+						doThrow(new RuntimeException()).when(mockDAO).findByPolicyGroupNameIgnoreCase((String)any());
 						
-						certService.setCertPolicyDao(mockDAO);
+						certService.setCertPolicyGroupRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -185,7 +185,7 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 				{
 					super.tearDownMocks();
 					
-					certService.setCertPolicyDao(policyDao);
+					certService.setCertPolicyGroupRepository(policyGroupRepo);
 				}	
 				
 				@Override
@@ -222,11 +222,11 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 					{
 						super.setupMocks();
 
-						CertPolicyDao mockDAO = mock(CertPolicyDao.class);
-						when(mockDAO.getPolicyGroupByName((String)any())).thenReturn(new org.nhindirect.config.store.CertPolicyGroup());
-						doThrow(new RuntimeException()).when(mockDAO).deletePolicyGroups((long[])any());
+						CertPolicyGroupRepository mockDAO = mock(CertPolicyGroupRepository.class);
+						when(mockDAO.findByPolicyGroupNameIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.CertPolicyGroup());
+						doThrow(new RuntimeException()).when(mockDAO).deleteById((Long)any());
 						
-						certService.setCertPolicyDao(mockDAO);
+						certService.setCertPolicyGroupRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -239,7 +239,7 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 				{
 					super.tearDownMocks();
 					
-					certService.setCertPolicyDao(policyDao);
+					certService.setCertPolicyGroupRepository(policyGroupRepo);
 				}	
 				
 				@Override

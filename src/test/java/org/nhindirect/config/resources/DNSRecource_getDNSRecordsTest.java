@@ -18,7 +18,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.DNSRecord;
 import org.nhindirect.config.model.utils.DNSUtils;
-import org.nhindirect.config.store.dao.DNSDao;
+import org.nhindirect.config.repository.DNSRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -405,10 +405,10 @@ public class DNSRecource_getDNSRecordsTest extends SpringBaseTest
 					{
 						super.setupMocks();
 
-						DNSDao mockDAO = mock(DNSDao.class);
-						doThrow(new RuntimeException()).when(mockDAO).get((String)any());
+						DNSRepository mockDAO = mock(DNSRepository.class);
+						doThrow(new RuntimeException()).when(mockDAO).findByNameIgnoreCase((String)any());
 						
-						dnsService.setDNSDao(mockDAO);
+						dnsService.setDNSRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -421,7 +421,7 @@ public class DNSRecource_getDNSRecordsTest extends SpringBaseTest
 				{
 					super.tearDownMocks();
 					
-					dnsService.setDNSDao(dnsDao);
+					dnsService.setDNSRepository(dnsRepo);
 				}
 				
 				

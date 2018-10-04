@@ -17,7 +17,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.Anchor;
 import org.nhindirect.config.model.EntityStatus;
-import org.nhindirect.config.store.dao.AnchorDao;
+import org.nhindirect.config.repository.AnchorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -176,10 +176,10 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 				{
 					super.setupMocks();
 
-					AnchorDao mockDAO = mock(AnchorDao.class);
-					doThrow(new RuntimeException()).when(mockDAO).listAll();
+					AnchorRepository mockDAO = mock(AnchorRepository.class);
+					doThrow(new RuntimeException()).when(mockDAO).findAll();
 					
-					anchorService.setAnchorDao(mockDAO);
+					anchorService.setAnchorRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -192,7 +192,7 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				anchorService.setAnchorDao(anchorDao);
+				anchorService.setAnchorRepository(anchorRepo);
 			}
 			
 			@Override

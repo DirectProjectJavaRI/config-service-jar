@@ -29,8 +29,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.processor.BundleCacheUpdateProcessor;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
+import org.nhindirect.config.repository.TrustBundleRepository;
 import org.nhindirect.config.store.TrustBundle;
-import org.nhindirect.config.store.dao.TrustBundleDao;
 
 /**
  * Camel based implementation of the {@linkplain BundleCacheUpdateProcessor} interface.
@@ -48,9 +48,9 @@ public class DefaultBundleCacheUpdateProcessorImpl implements BundleCacheUpdateP
     private static final Log log = LogFactory.getLog(DefaultBundleCacheUpdateProcessorImpl.class);
 	
     /**
-     * The trust bundle dao
+     * Trust bundle repo
      */
-	protected TrustBundleDao dao;
+	protected TrustBundleRepository bundleRepo;
 
 	/**
 	 * The bundle refresh processor.
@@ -66,12 +66,12 @@ public class DefaultBundleCacheUpdateProcessorImpl implements BundleCacheUpdateP
 	}
 	
 	/**
-	 * Sets the trust bundle dao used to get the last refresh date/time.
-	 * @param dao
+	 * Sets the trust bundle repository used to get the last refresh date/time.
+	 * @param bundleRepo
 	 */
-	public void setDao(TrustBundleDao dao)
+	public void setRepository(TrustBundleRepository bundleRepo)
 	{
-		this.dao = dao;
+		this.bundleRepo = bundleRepo;
 	}
 	
 	/**
@@ -93,7 +93,7 @@ public class DefaultBundleCacheUpdateProcessorImpl implements BundleCacheUpdateP
 		Collection<TrustBundle> bundles;
 		try
 		{
-			bundles = dao.getTrustBundles();
+			bundles = bundleRepo.findAll();
 			for (TrustBundle bundle : bundles)
 			{
 				boolean refresh = false;

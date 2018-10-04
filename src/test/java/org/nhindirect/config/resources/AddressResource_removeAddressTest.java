@@ -13,7 +13,9 @@ import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
-import org.nhindirect.config.store.dao.AddressDao;
+import org.nhindirect.config.model.Domain;
+import org.nhindirect.config.model.EntityStatus;
+import org.nhindirect.config.repository.AddressRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -49,10 +51,14 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			
 			if (domainName != null && !domainName.isEmpty())
 			{
-				final org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
+				
+				
+				final Domain domain = new Domain();
 				domain.setDomainName(domainName);
-				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED);
-				domainDao.add(domain);
+				domain.setStatus(EntityStatus.ENABLED);
+				
+				final HttpEntity<Domain> requestEntity = new HttpEntity<>(domain);
+				testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
 				
 				if (addAddress != null)
 					addAddress.setDomainName(domainName);
@@ -91,6 +97,12 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			protected Address address;
 			
 			@Override
+			protected void setupMocks() 
+			{
+				assertTrue(addressRepo.findAll().isEmpty());
+			}
+			
+			@Override
 			protected  Address getAddressToAdd()
 			{
 				address = new Address();
@@ -118,7 +130,7 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				assertNull(addressDao.get("me@test.com"));
+				assertNull(addressRepo.findByEmailAddressIgnoreCase("me@test.com"));
 			}
 		}.perform();
 	}	
@@ -177,11 +189,11 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 				{
 					super.setupMocks();
 
-					AddressDao mockDAO = mock(AddressDao.class);
-					when(mockDAO.get((String)any())).thenReturn(new org.nhindirect.config.store.Address());
-					doThrow(new RuntimeException()).when(mockDAO).delete(eq("me@test.com"));
+					AddressRepository mockDAO = mock(AddressRepository.class);
+					when(mockDAO.findByEmailAddressIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.Address());
+					doThrow(new RuntimeException()).when(mockDAO).delete((org.nhindirect.config.store.Address)any());
 					
-					addressService.setAddressDao(mockDAO);
+					addressService.setAddressRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -194,7 +206,7 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				addressService.setAddressDao(addressDao);
+				addressService.setAddressRepository(addressRepo);
 			}
 			
 			@Override
@@ -239,10 +251,10 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 				{
 					super.setupMocks();
 					
-					AddressDao mockDAO = mock(AddressDao.class);
-					doThrow(new RuntimeException()).when(mockDAO).get(eq("me@test.com"));
+					AddressRepository mockDAO = mock(AddressRepository.class);
+					doThrow(new RuntimeException()).when(mockDAO).findByEmailAddressIgnoreCase(eq("me@test.com"));
 					
-					addressService.setAddressDao(mockDAO);
+					addressService.setAddressRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -255,7 +267,7 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				addressService.setAddressDao(addressDao);
+				addressService.setAddressRepository(addressRepo);
 			}
 			
 			@Override

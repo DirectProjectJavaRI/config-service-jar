@@ -15,9 +15,8 @@ import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
-
-import org.nhindirect.config.store.dao.AddressDao;
-import org.nhindirect.config.store.dao.DomainDao;
+import org.nhindirect.config.repository.AddressRepository;
+import org.nhindirect.config.repository.DomainRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -58,7 +57,7 @@ public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 				final org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
 				domain.setDomainName(domainName);
 				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED);
-				domainDao.add(domain);
+				domainRepo.save(domain);
 				
 				if (addAddress != null)
 					addAddress.setDomainName(domainName);
@@ -228,10 +227,10 @@ public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 					super.setupMocks();
 					
 
-					DomainDao mockDAO = mock(DomainDao.class);
-					doThrow(new RuntimeException()).when(mockDAO).getDomainByName(eq("blowup.com"));
+					DomainRepository mockDAO = mock(DomainRepository.class);
+					doThrow(new RuntimeException()).when(mockDAO).findByDomainNameIgnoreCase(eq("blowup.com"));
 					
-					addressService.setDomainDao(mockDAO);
+					addressService.setDomainRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -244,7 +243,7 @@ public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				addressService.setDomainDao(domainDao);
+				addressService.setDomainRepository(domainRepo);
 			}
 			
 			
@@ -291,10 +290,10 @@ public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 				{
 					super.setupMocks();
 
-					AddressDao mockDAO = mock(AddressDao.class);
-					doThrow(new RuntimeException()).when(mockDAO).getByDomain((org.nhindirect.config.store.Domain)any(), eq((org.nhindirect.config.store.EntityStatus)null));
+					AddressRepository mockDAO = mock(AddressRepository.class);
+					doThrow(new RuntimeException()).when(mockDAO).findByDomain((org.nhindirect.config.store.Domain)any());
 					
-					addressService.setAddressDao(mockDAO);
+					addressService.setAddressRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -307,7 +306,7 @@ public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				addressService.setAddressDao(addressDao);
+				addressService.setAddressRepository(addressRepo);
 			}
 			
 			@Override

@@ -1,5 +1,8 @@
 package org.nhindirect.config.processor.impl;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 
 import java.security.cert.X509Certificate;
@@ -7,14 +10,14 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Locale;
 
-import junit.framework.TestCase;
-
+import org.junit.Test;
 import org.nhindirect.config.TestUtils;
+import org.nhindirect.config.repository.TrustBundleRepository;
 import org.nhindirect.config.store.TrustBundle;
-import org.nhindirect.config.store.dao.TrustBundleDao;
 
-public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectionTest extends TestCase
+public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectionTest
 {
+	@Test
 	public void testConvertRawBundleToAnchorCollection_getFromP7B_assertAnchors() throws Exception
 	{
 		final byte[] rawBundle = TestUtils.loadBundle("signedbundle.p7b");
@@ -32,6 +35,7 @@ public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectio
 		assertEquals(1, anchors.size());
 	}	
 	
+	@Test
 	public void testConvertRawBundleToAnchorCollection_getFromSignedBundle_noVerification_assertAnchors() throws Exception
 	{
 		final byte[] rawBundle = TestUtils.loadBundle("signedbundle.p7m");
@@ -49,6 +53,7 @@ public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectio
 		assertEquals(1, anchors.size());
 	}
 	
+	@Test
 	public void testConvertRawBundleToAnchorCollection_getFromSignedBundle_verifySigner_assertAnchors() throws Exception
 	{
 		final X509Certificate signer = TestUtils.loadSigner("bundleSigner.der");
@@ -69,16 +74,17 @@ public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectio
 		assertEquals(1, anchors.size());
 	}	
 	
+	@Test
 	public void testConvertRawBundleToAnchorCollection_getFromSignedBundle_invalidSigner_assertNoAnchors() throws Exception
 	{
-		TrustBundleDao dao = mock(TrustBundleDao.class);
+		TrustBundleRepository repo = mock(TrustBundleRepository.class);
 		
 		final X509Certificate signer = TestUtils.loadSigner("sm1.direct.com Root CA.der");
 		
 		final byte[] rawBundle = TestUtils.loadBundle("signedbundle.p7m");
 		
 		final DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setDao(dao);
+		processor.setRepository(repo);
 		
 		final TrustBundle existingBundle = new TrustBundle();
 		existingBundle.setSigningCertificateData(signer.getEncoded());
@@ -91,14 +97,15 @@ public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectio
 
 	}	
 	
+	@Test
 	public void testConvertRawBundleToAnchorCollection_invalidBundle_assertNoAnchors() throws Exception
 	{
-		TrustBundleDao dao = mock(TrustBundleDao.class);
+		TrustBundleRepository repo = mock(TrustBundleRepository.class);
 		
 		final byte[] rawBundle = TestUtils.loadBundle("invalidBundle.der");
 		
 		final DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setDao(dao);
+		processor.setRepository(repo);
 		
 		final TrustBundle existingBundle = new TrustBundle();
 		

@@ -20,14 +20,12 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.DNSRecord;
 import org.nhindirect.config.model.utils.DNSUtils;
-import org.nhindirect.config.store.dao.DNSDao;
+import org.nhindirect.config.repository.DNSRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
-import org.xbill.DNS.Type;
-
 
 public class DNSResource_addDNSRecordTest extends SpringBaseTest
 {
@@ -109,7 +107,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				Collection<org.nhindirect.config.store.DNSRecord> retrievedRecords = dnsDao.get(Type.ANY);
+				Collection<org.nhindirect.config.store.DNSRecord> retrievedRecords = dnsRepo.findAll();
 				
 				assertNotNull(retrievedRecords);
 				assertEquals(this.records.size(), retrievedRecords.size());
@@ -161,7 +159,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				Collection<org.nhindirect.config.store.DNSRecord> retrievedRecords = dnsDao.get(Type.ANY);
+				Collection<org.nhindirect.config.store.DNSRecord> retrievedRecords = dnsRepo.findAll();
 				
 				assertNotNull(retrievedRecords);
 				assertEquals(this.records.size(), retrievedRecords.size());
@@ -234,11 +232,11 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 				{
 					super.setupMocks();
 					
-					DNSDao mockDAO = mock(DNSDao.class);
+					DNSRepository mockDAO = mock(DNSRepository.class);
 					
-					doThrow(new RuntimeException()).when(mockDAO).get((String)any(), eq(1));
+					doThrow(new RuntimeException()).when(mockDAO).findByNameIgnoreCaseAndType((String)any(), eq(1));
 					
-					dnsService.setDNSDao(mockDAO);
+					dnsService.setDNSRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -251,7 +249,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				dnsService.setDNSDao(dnsDao);
+				dnsService.setDNSRepository(dnsRepo);
 			}
 			
 			@Override
@@ -287,7 +285,6 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 	{
 		new TestPlan()
 		{
-			@SuppressWarnings("unchecked")
 			@Override
 			protected void setupMocks()
 			{
@@ -295,11 +292,11 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 				{
 					super.setupMocks();
 
-					DNSDao mockDAO = mock(DNSDao.class);
-					when(mockDAO.get((String)any(), eq(1))).thenReturn(new ArrayList<org.nhindirect.config.store.DNSRecord>());
-					doThrow(new RuntimeException()).when(mockDAO).add((Collection<org.nhindirect.config.store.DNSRecord>)any());
+					DNSRepository mockDAO = mock(DNSRepository.class);
+					when(mockDAO.findByNameIgnoreCaseAndType((String)any(), eq(1))).thenReturn(new ArrayList<org.nhindirect.config.store.DNSRecord>());
+					doThrow(new RuntimeException()).when(mockDAO).save((org.nhindirect.config.store.DNSRecord)any());
 					
-					dnsService.setDNSDao(mockDAO);
+					dnsService.setDNSRepository(mockDAO);
 				}
 				catch (Throwable t)
 				{
@@ -312,7 +309,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 			{
 				super.tearDownMocks();
 				
-				dnsService.setDNSDao(dnsDao);
+				dnsService.setDNSRepository(dnsRepo);
 			}
 			
 			

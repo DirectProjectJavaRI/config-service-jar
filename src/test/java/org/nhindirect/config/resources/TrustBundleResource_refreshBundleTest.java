@@ -15,7 +15,7 @@ import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.BundleRefreshError;
 import org.nhindirect.config.model.TrustBundle;
-import org.nhindirect.config.store.dao.TrustBundleDao;
+import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -182,10 +182,10 @@ public class TrustBundleResource_refreshBundleTest extends SpringBaseTest
 					{
 						super.setupMocks();
 						
-						TrustBundleDao mockDAO = mock(TrustBundleDao.class);
+						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
 						
-						doThrow(new RuntimeException()).when(mockDAO).getTrustBundleByName(eq("testBundle1"));
-						bundleService.setTrustBundleDao(mockDAO);
+						doThrow(new RuntimeException()).when(mockDAO).findByBundleNameIgnoreCase(eq("testBundle1"));
+						bundleService.setTrustBundleRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -198,7 +198,7 @@ public class TrustBundleResource_refreshBundleTest extends SpringBaseTest
 				{
 					super.tearDownMocks();
 					
-					bundleService.setTrustBundleDao(bundleDao);
+					bundleService.setTrustBundleRepository(bundleRepo);
 				}	
 				
 				@Override

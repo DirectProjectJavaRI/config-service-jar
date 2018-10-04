@@ -17,7 +17,7 @@ import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.TrustBundle;
-import org.nhindirect.config.store.dao.TrustBundleDao;
+import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -370,10 +370,10 @@ public class TrustBundleResource_getTrustBundlesTest extends SpringBaseTest
 					{
 						super.setupMocks();
 
-						TrustBundleDao mockDAO = mock(TrustBundleDao.class);
-						doThrow(new RuntimeException()).when(mockDAO).getTrustBundles();
+						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
+						doThrow(new RuntimeException()).when(mockDAO).findAll();
 						
-						bundleService.setTrustBundleDao(mockDAO);
+						bundleService.setTrustBundleRepository(mockDAO);
 					}
 					catch (Throwable t)
 					{
@@ -386,7 +386,7 @@ public class TrustBundleResource_getTrustBundlesTest extends SpringBaseTest
 				{
 					super.tearDownMocks();
 					
-					bundleService.setTrustBundleDao(bundleDao);
+					bundleService.setTrustBundleRepository(bundleRepo);
 				}				
 				
 				@Override
