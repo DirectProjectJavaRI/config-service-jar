@@ -22,12 +22,8 @@ THE POSSIBILITY OF SUCH DAMAGE.
 package org.nhindirect.config.resources;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-
-import javax.servlet.http.HttpServletRequest;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.model.Setting;
@@ -37,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,6 +42,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
+
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 
 /**
@@ -88,26 +88,25 @@ public class SettingResource extends ProtectedResource
      * @return A JSON representation of a collection of all settings in the system.  Returns a status of 204 if no settings exist.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Collection<Setting>> getAllSettings()
+    public Flux<Setting> getAllSettings(ServerHttpResponse resp)
     {
-    	Collection<org.nhindirect.config.store.Setting> retSettings;
-    	
     	try
     	{
-    		retSettings = settingRepo.findAll();
-    		if (retSettings.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    		resp.setStatusCode(HttpStatus.NO_CONTENT);
+
+    		return Flux.fromStream(settingRepo.findAll().stream().
+    		    	map(setting -> {
+    		    		resp.setStatusCode(HttpStatus.OK);
+    		    		
+    		    		return EntityModelConversion.toModelSetting(setting);
+    		    	}));     		   	
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up settings.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
     	}
-    	
-    	final Collection<Setting> modelSettings = new ArrayList<Setting>();
-    	retSettings.forEach(setting->modelSettings.add(EntityModelConversion.toModelSetting(setting)));
-
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelSettings);      	
     }
     
     /**
@@ -116,7 +115,7 @@ public class SettingResource extends ProtectedResource
      * @return A JSON representation of the setting.  Returns a status of 404 if a setting with the given name does not exist.
      */
     @GetMapping(value="{name}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Setting> getSettingByName(@PathVariable("name") String name)
+    public ResponseEntity<Mono<Setting>> getSettingByName(@PathVariable("name") String name)
     {    	
     	try
     	{
@@ -126,7 +125,7 @@ public class SettingResource extends ProtectedResource
     		
     		final Setting modelSetting = EntityModelConversion.toModelSetting(retSettings.iterator().next());
     		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelSetting); 	
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(modelSetting)); 	
     	}
     	catch (Exception e)
     	{
@@ -144,8 +143,7 @@ public class SettingResource extends ProtectedResource
      * already exists.
      */
     @PutMapping("{name}/{value}")  
-    public ResponseEntity<Void> addSetting(@PathVariable("name") String name, @PathVariable("value") String value, 
-    		HttpServletRequest request)
+    public ResponseEntity<Mono<Void>> addSetting(@PathVariable("name") String name, @PathVariable("value") String value)
     {    	
     	if (name == null || name.isEmpty())
     	{
@@ -180,8 +178,8 @@ public class SettingResource extends ProtectedResource
     		addSetting.setValue(value);
     		settingRepo.save(addSetting);
     		
-    		final String requestUrl = request.getRequestURL().toString();
-    		final URI uri = new UriTemplate("{requestUrl}/{name}").expand(requestUrl, "setting/" + name);
+
+    		final URI uri = new UriTemplate("/{name}").expand("setting/" + name);
     		
     		return ResponseEntity.created(uri).cacheControl(noCache).build();
     	}
@@ -200,7 +198,7 @@ public class SettingResource extends ProtectedResource
      * does not exist.
      */
     @PostMapping("{name}/{value}")  
-    public ResponseEntity<Void> updateSetting(@PathVariable("name") String name, @PathVariable("value") String value)
+    public ResponseEntity<Mono<Void>> updateSetting(@PathVariable("name") String name, @PathVariable("value") String value)
     {    	
     	
     	org.nhindirect.config.store.Setting retSetting = null;
@@ -238,7 +236,7 @@ public class SettingResource extends ProtectedResource
      * @return Status of 200 if the setting was deleted or a status of 204 if a setting with the given name does not exist.
      */ 
     @DeleteMapping("{name}")
-    public ResponseEntity<Void> removeSettingByName(@PathVariable("name") String name)
+    public ResponseEntity<Mono<Void>> removeSettingByName(@PathVariable("name") String name)
     {
     	// check to see if it already exists
     	try

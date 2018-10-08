@@ -57,19 +57,20 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 				});
 			}
 			
+
 			final ResponseEntity<Collection<Anchor>> getAnchors = 
 					testRestTemplate.exchange("/anchor", HttpMethod.GET, null, new ParameterizedTypeReference<Collection<Anchor>>() {});
 
 			if (getAnchors.getStatusCodeValue() == 404 || getAnchors.getStatusCodeValue() == 204)
-				doAssertions(new ArrayList<>());
+				doAssertions(new ArrayList<>(), getAnchors.getStatusCodeValue());
 			else if (getAnchors.getStatusCodeValue() != 200)
 				throw new HttpClientErrorException(getAnchors.getStatusCode());
 			else
-				doAssertions(getAnchors.getBody());
+				doAssertions(getAnchors.getBody(), getAnchors.getStatusCodeValue());
 			
 		}
 			
-		protected void doAssertions(Collection<Anchor> anchors) throws Exception
+		protected void doAssertions(Collection<Anchor> anchors, int statusCode) throws Exception
 		{
 			
 		}
@@ -119,8 +120,10 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 
 			
 			@Override
-			protected void doAssertions(Collection<Anchor> anchors) throws Exception
+			protected void doAssertions(Collection<Anchor> anchors, int statusCode)
 			{
+				assertEquals(200, statusCode);
+				
 				assertNotNull(anchors);
 				assertEquals(2, anchors.size());
 				
@@ -154,8 +157,9 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 			}
 
 			@Override
-			protected void doAssertions(Collection<Anchor> anchors) throws Exception
+			protected void doAssertions(Collection<Anchor> anchors, int statusCode)
 			{
+				assertEquals(204, statusCode);
 				assertNotNull(anchors);
 				assertTrue(anchors.isEmpty());
 				

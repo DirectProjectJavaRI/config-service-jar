@@ -27,8 +27,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import javax.servlet.http.HttpServletRequest;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.model.DNSRecord;
@@ -38,6 +36,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -49,6 +48,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
 import org.xbill.DNS.Type;
+
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * JAX-RS resource for managing DNS resources in the configuration service.
@@ -94,13 +96,15 @@ public class DNSResource extends ProtectedResource
      * a status of 204 if no records match the search criteria.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Collection<DNSRecord>> getDNSRecords(@RequestParam(name="type", defaultValue = "-1")int type, 
-    		@RequestParam(name="name", defaultValue="") String name)
+    public Flux<DNSRecord> getDNSRecords(@RequestParam(name="type", defaultValue = "-1")int type, 
+    		@RequestParam(name="name", defaultValue="") String name, ServerHttpResponse resp)
     {
     	Collection<org.nhindirect.config.store.DNSRecord> retRecords;
     	
     	try
     	{
+    		resp.setStatusCode(HttpStatus.NO_CONTENT);
+    		
 	    	if (type > -1 && !name.isEmpty())
 	    	{
 	    		if (type == Type.ANY)
@@ -120,25 +124,26 @@ public class DNSResource extends ProtectedResource
 	    	else
 	    	{
         		log.error("Either a DNS query name or type (or both) must be specified.");
-        		return ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(noCache).build();    		
+    			resp.setStatusCode(HttpStatus.BAD_REQUEST);
+    			return Flux.empty();		
 	    	}
 	    		
 	    	
-	    	if (retRecords.isEmpty())
-	    		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();	
+    		return 
+    				Flux.fromStream(retRecords.stream().
+    				map(record -> {
+    					resp.setStatusCode(HttpStatus.OK);
+    					return EntityModelConversion.toModelDNSRecord(record);
+    				}));
 	    		
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up DNS records.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
     	}
-    	
-    	final Collection<DNSRecord> modelRecords = new ArrayList<DNSRecord>();
-    	retRecords.forEach(record->
-    		modelRecords.add(EntityModelConversion.toModelDNSRecord(record)));
-
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelRecords);     	
+    	  	
     }
     
     /**
@@ -148,7 +153,7 @@ public class DNSResource extends ProtectedResource
      * @return Status fo 201 if the DNS record was added to the system or a status of 409 if the record already exists.
      */   
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Void> addDNSRecord(@RequestBody DNSRecord record, HttpServletRequest request)
+    public ResponseEntity<Mono<Void>> addDNSRecord(@RequestBody DNSRecord record)
     {
     	if (record.getType() == Type.ANY)
     	{
@@ -180,8 +185,7 @@ public class DNSResource extends ProtectedResource
     	{
     		dnsRepo.save(EntityModelConversion.toEntityDNSRecord(record));
     		    		
-    		final String requestUrl = request.getRequestURL().toString();
-    		final URI uri = new UriTemplate("{requestUrl}/dns?{type}&name={name}").expand(requestUrl, record.getType(),  record.getName());
+    		final URI uri = new UriTemplate("/dns?{type}&name={name}").expand(record.getType(),  record.getName());
     		
     		return ResponseEntity.created(uri).cacheControl(noCache).build();
     	}
@@ -198,7 +202,7 @@ public class DNSResource extends ProtectedResource
      * @return Status of 204 if the DNS record was updated or status of 404 if the record could not be found. 
      */    
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Void> updateDNSRecord(@RequestBody DNSRecord updateRecord)
+    public ResponseEntity<Mono<Void>> updateDNSRecord(@RequestBody DNSRecord updateRecord)
     {       	
     	// ensure it exists 
     	try
@@ -234,7 +238,7 @@ public class DNSResource extends ProtectedResource
      * @return Status of 200 if the DNS records were deleted.
      */
     @DeleteMapping("{ids}")
-    public ResponseEntity<Void> removeDNSRecordsByIds(@PathVariable("ids") String ids)
+    public ResponseEntity<Mono<Void>> removeDNSRecordsByIds(@PathVariable("ids") String ids)
     {
     	final String[] idArray = ids.split(",");
     	final List<Long> idList = new ArrayList<>(idArray.length);

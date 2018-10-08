@@ -22,10 +22,8 @@ THE POSSIBILITY OF SUCH DAMAGE.
 package org.nhindirect.config.resources;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Collection;
-
-import javax.servlet.http.HttpServletRequest;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
@@ -44,6 +42,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -54,6 +53,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
+
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Resource for managing certificate policy resources in the configuration service.
@@ -131,28 +133,25 @@ public class CertPolicyResource extends ProtectedResource
      * no certificate policies exists.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Collection<CertPolicy>> getPolicies()
+    public Flux<CertPolicy> getPolicies(ServerHttpResponse resp)
     {
-    	Collection<org.nhindirect.config.store.CertPolicy> retPolicies;
+    	resp.setStatusCode(HttpStatus.NO_CONTENT);
     	
     	try
     	{
-    		retPolicies = policyRepo.findAll();
-    		if (retPolicies.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    		return Flux.fromStream(policyRepo.findAll().stream().
+    				map(pol -> {
+    					resp.setStatusCode(HttpStatus.OK);
+    					return EntityModelConversion.toModelCertPolicy(pol);				
+    				}));
+    		
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up cert policies.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	final Collection<CertPolicy> modelPolicies = new ArrayList<CertPolicy>();
-    	
-    	retPolicies.forEach(policy->
-    		modelPolicies.add(EntityModelConversion.toModelCertPolicy(policy)));
-		
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelPolicies);     	
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
+    	} 	
     }
     
     /**
@@ -161,7 +160,7 @@ public class CertPolicyResource extends ProtectedResource
      * @return A JSON representation of the certificate policy.  Returns a status of 404 if a certificate policy with the given name does not exist.
      */
     @GetMapping(value="/{policyName}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<CertPolicy> getPolicyByName(@PathVariable("policyName") String policyName)
+    public ResponseEntity<Mono<CertPolicy>> getPolicyByName(@PathVariable("policyName") String policyName)
     {
     	try
     	{
@@ -172,7 +171,7 @@ public class CertPolicyResource extends ProtectedResource
 
     		final CertPolicy modelPolicy = EntityModelConversion.toModelCertPolicy(retPolicy);
     		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelPolicy);   
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(modelPolicy));   
     		
     	}
     	catch (Throwable e)
@@ -189,7 +188,7 @@ public class CertPolicyResource extends ProtectedResource
      * @return A status of 201 if the policy was added or a status of 409 if the policy already exists.
      */
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)  
-    public ResponseEntity<Void> addPolicy(@RequestBody CertPolicy policy, HttpServletRequest request)
+    public ResponseEntity<Mono<Void>> addPolicy(@RequestBody CertPolicy policy)
     {
     	// make sure it doesn't exist
     	try
@@ -208,9 +207,8 @@ public class CertPolicyResource extends ProtectedResource
     		final org.nhindirect.config.store.CertPolicy entityPolicy = EntityModelConversion.toEntityCertPolicy(policy);
     		
     		policyRepo.save(entityPolicy);
-    		
-    		final String requestUrl = request.getRequestURL().toString();
-    		final URI uri = new UriTemplate("{requestUrl}/{certpolicy}").expand(requestUrl, "certpolicy/" + policy.getPolicyName());
+ 
+    		final URI uri = new UriTemplate("/{certpolicy}").expand("certpolicy/" + policy.getPolicyName());
     		
     		return ResponseEntity.created(uri).cacheControl(noCache).build();
     	}
@@ -227,7 +225,7 @@ public class CertPolicyResource extends ProtectedResource
      * @return Status of 200 if the policy was delete or 404 if a certificate policy with the given name does not exist.
      */
     @DeleteMapping(value="{policyName}")   
-    public ResponseEntity<Void> removePolicyByName(@PathVariable("policyName") String policyName)
+    public ResponseEntity<Mono<Void>> removePolicyByName(@PathVariable("policyName") String policyName)
     {
     	// make sure it exists
     	org.nhindirect.config.store.CertPolicy enitityPolicy = null;
@@ -263,7 +261,7 @@ public class CertPolicyResource extends ProtectedResource
      * @return Status of 204 if the certificate policy was updated or 404 if a certificate policy with the given name does not exist.
      */
     @PostMapping(value="{policyName}/policyAttributes", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Void> updatePolicyAttributes(@PathVariable("policyName") String policyName, @RequestBody CertPolicy policyData)
+    public ResponseEntity<Mono<Void>> updatePolicyAttributes(@PathVariable("policyName") String policyName, @RequestBody CertPolicy policyData)
     { 
        	// make sure the policy exists
     	org.nhindirect.config.store.CertPolicy entityPolicy;
@@ -309,27 +307,27 @@ public class CertPolicyResource extends ProtectedResource
      */
     @GetMapping(value="groups", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public ResponseEntity<Collection<CertPolicyGroup>> getPolicyGroups()
-    {
-    	Collection<org.nhindirect.config.store.CertPolicyGroup> retGroups;
+    public Flux<CertPolicyGroup> getPolicyGroups(ServerHttpResponse resp)
+    {    	
     	
+    	resp.setStatusCode(HttpStatus.NO_CONTENT);
     	try
     	{
-    		retGroups = groupRepo.findAll();
-    		if (retGroups.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    		final Collection<CertPolicyGroup> retGroups = groupRepo.findAll().stream().
+    		   map(group -> {
+    			   resp.setStatusCode(HttpStatus.OK);
+    			   return EntityModelConversion.toModelCertPolicyGroup(group);
+    		   }).
+    		   collect(Collectors.toList());
+    		   
+    		return Flux.fromIterable(retGroups);
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up cert policy groups.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	final Collection<CertPolicyGroup> modelGroups = new ArrayList<CertPolicyGroup>();
-    	
-    	retGroups.forEach(group->modelGroups.add(EntityModelConversion.toModelCertPolicyGroup(group)));
-
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelGroups);    	
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
+    	}   	
     }  
     
     /**
@@ -340,7 +338,7 @@ public class CertPolicyResource extends ProtectedResource
      */
     @GetMapping(value="groups/{groupName}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public ResponseEntity<CertPolicyGroup> getPolicyGroupByName(@PathVariable("groupName") String groupName)
+    public ResponseEntity<Mono<CertPolicyGroup>> getPolicyGroupByName(@PathVariable("groupName") String groupName)
     {
     	try
     	{
@@ -351,7 +349,7 @@ public class CertPolicyResource extends ProtectedResource
 
     		final CertPolicyGroup modelGroup = EntityModelConversion.toModelCertPolicyGroup(retGroup);
     		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelGroup);    
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(modelGroup));    
     		
     	}
     	catch (Throwable e)
@@ -369,7 +367,7 @@ public class CertPolicyResource extends ProtectedResource
      * already exists.
      */
     @PutMapping(value="groups", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Void> addPolicyGroup(@RequestBody CertPolicyGroup group, HttpServletRequest request)
+    public ResponseEntity<Mono<Void>> addPolicyGroup(@RequestBody CertPolicyGroup group)
     {
     	// make sure it doesn't exist
     	try
@@ -389,8 +387,7 @@ public class CertPolicyResource extends ProtectedResource
     		
     		groupRepo.save(entityGroup);
     		
-    		final String requestUrl = request.getRequestURL().toString();
-    		final URI uri = new UriTemplate("{requestUrl}/{certpolicy}").expand(requestUrl, "certpolicy/group+/" + group.getPolicyGroupName());
+    		final URI uri = new UriTemplate("/{certpolicy}").expand("certpolicy/group+/" + group.getPolicyGroupName());
     		
     		return ResponseEntity.created(uri).cacheControl(noCache).build();
     		
@@ -409,7 +406,7 @@ public class CertPolicyResource extends ProtectedResource
      * name does not exist.
      */
     @DeleteMapping(value="groups/{groupName}")  
-    public ResponseEntity<Void> removePolicyGroupByName(@PathVariable("groupName") String groupName)
+    public ResponseEntity<Mono<Void>> removePolicyGroupByName(@PathVariable("groupName") String groupName)
     {
     	// make sure it exists
     	org.nhindirect.config.store.CertPolicyGroup enitityGroup = null;
@@ -446,7 +443,7 @@ public class CertPolicyResource extends ProtectedResource
      * does not exist.
      */ 
     @PostMapping(value="groups/{groupName}/groupAttributes", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Void> updateGroupAttributes(@PathVariable("groupName") String groupName, @RequestBody String newGroupName)
+    public ResponseEntity<Mono<Void>> updateGroupAttributes(@PathVariable("groupName") String groupName, @RequestBody String newGroupName)
     { 
        	// make sure the policy exists
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
@@ -487,7 +484,7 @@ public class CertPolicyResource extends ProtectedResource
      */ 
     @PostMapping(value="groups/uses/{group}", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Transactional
-    public ResponseEntity<?> addPolicyUseToGroup(@PathVariable("group") String groupName, @RequestBody CertPolicyGroupUse use)
+    public ResponseEntity<Mono<Void>> addPolicyUseToGroup(@PathVariable("group") String groupName, @RequestBody CertPolicyGroupUse use)
     {
     	// make sure the group exists
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
@@ -554,7 +551,7 @@ public class CertPolicyResource extends ProtectedResource
      */
     @PostMapping(value="groups/uses/{group}/removePolicy", consumes = MediaType.APPLICATION_JSON_VALUE)    
     @Transactional
-    public ResponseEntity<Void> removedPolicyUseFromGroup(@PathVariable("group") String groupName, @RequestBody CertPolicyGroupUse use)
+    public ResponseEntity<Mono<Void>> removedPolicyUseFromGroup(@PathVariable("group") String groupName, @RequestBody CertPolicyGroupUse use)
     {
     	// make sure the group exists
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
@@ -614,30 +611,29 @@ public class CertPolicyResource extends ProtectedResource
      */
     @GetMapping(value="/groups/domain", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public ResponseEntity<Collection<CertPolicyGroupDomainReltn>> getPolicyGroupDomainReltns()
-    {
-    	Collection<org.nhindirect.config.store.CertPolicyGroupDomainReltn> retReltn;
+    public Flux<CertPolicyGroupDomainReltn> getPolicyGroupDomainReltns(ServerHttpResponse resp)
+    {    	
+    	resp.setStatusCode(HttpStatus.NO_CONTENT);
     	
     	try
     	{
-    		retReltn = reltnRepo.findAll();
-    		if (retReltn.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    		final Collection<CertPolicyGroupDomainReltn> retReltns = reltnRepo.findAll().stream().
+ 	    		   map(reltn -> 
+ 	    		   {
+ 	    			  resp.setStatusCode(HttpStatus.OK);
+ 	    			  return EntityModelConversion.toModelCertPolicyGroupDomainReltn(reltn);   			   
+ 	    		   }).
+ 	    		   collect(Collectors.toList());
+ 	    		   
+ 	        return Flux.fromIterable(retReltns);    		
+    		
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up policy group/domain relations.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	final Collection<CertPolicyGroupDomainReltn> modelReltns = new ArrayList<CertPolicyGroupDomainReltn>();
-    	
-    	retReltn.forEach(reltn->
-    		modelReltns.add(EntityModelConversion.toModelCertPolicyGroupDomainReltn(reltn)));
-
-		
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache)
-				.body(modelReltns);    
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
+    	}  
     }
     
     /**
@@ -649,7 +645,7 @@ public class CertPolicyResource extends ProtectedResource
      */
     @GetMapping(value="groups/domain/{domain}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public ResponseEntity<Collection<CertPolicyGroup>> getPolicyGroupsByDomain(@PathVariable("domain") String domainName)
+    public Flux<CertPolicyGroup> getPolicyGroupsByDomain(@PathVariable("domain") String domainName, ServerHttpResponse resp)
     {
     	// make sure the domain exists
     	org.nhindirect.config.store.Domain entityDomain;
@@ -657,35 +653,39 @@ public class CertPolicyResource extends ProtectedResource
     	{
     		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
     		if (entityDomain == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
+    		{
+    			resp.setStatusCode(HttpStatus.NOT_FOUND);
+    			return Flux.empty();
+    		}
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
     	} 
-    	
-    	Collection<org.nhindirect.config.store.CertPolicyGroupDomainReltn> retPolicyGroups;
     	
     	try
     	{
-    		retPolicyGroups = reltnRepo.findByDomain(entityDomain);
-    		if (retPolicyGroups.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    		resp.setStatusCode(HttpStatus.NO_CONTENT);
+    		
+    		final Collection<CertPolicyGroup> retReltns = reltnRepo.findByDomain(entityDomain).stream().
+    	    		   map(reltn -> {
+    	    			   resp.setStatusCode(HttpStatus.OK);
+    	    			   return EntityModelConversion.toModelCertPolicyGroup(reltn.getCertPolicyGroup());		   
+    	    		   }).
+    	    		   collect(Collectors.toList());
+    	    		   
+    	    return Flux.fromIterable(retReltns);
+    		
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up cert policy groups.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
     	}
-    	
-    	final Collection<CertPolicyGroup> modelGroups = new ArrayList<CertPolicyGroup>();
-    	
-    	retPolicyGroups.forEach(reltn->
-    		modelGroups.add(EntityModelConversion.toModelCertPolicyGroup(reltn.getCertPolicyGroup())));
-
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache)
-				.body(modelGroups);        	
+    	       	
     }
     
     /**
@@ -696,7 +696,7 @@ public class CertPolicyResource extends ProtectedResource
      * or domain with the given respective names do not exist.
      */
     @PostMapping("groups/domain/{group}/{domain}")
-    public ResponseEntity<Void> associatePolicyGroupToDomain(@PathVariable("group") String groupName, @PathVariable("domain") String domainName)
+    public ResponseEntity<Mono<Void>> associatePolicyGroupToDomain(@PathVariable("group") String groupName, @PathVariable("domain") String domainName)
     {
     	// make sure the group exists
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
@@ -753,7 +753,7 @@ public class CertPolicyResource extends ProtectedResource
      * or domain with the given respective names do not exist.
      */
     @DeleteMapping("groups/domain/{group}/{domain}")
-    public ResponseEntity<Void> disassociatePolicyGroupFromDomain(@PathVariable("group") String groupName, @PathVariable("domain") String domainName)
+    public ResponseEntity<Mono<Void>> disassociatePolicyGroupFromDomain(@PathVariable("group") String groupName, @PathVariable("domain") String domainName)
     {
     	// make sure the group exists
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
@@ -804,7 +804,7 @@ public class CertPolicyResource extends ProtectedResource
      */
     @DeleteMapping(value="groups/domain/{domain}/deleteFromDomain")
     @Transactional
-    public ResponseEntity<Void> disassociatePolicyGroupsFromDomain(@PathVariable("domain") String domainName)
+    public ResponseEntity<Mono<Void>> disassociatePolicyGroupsFromDomain(@PathVariable("domain") String domainName)
     {
     	// make sure the domain exists
     	org.nhindirect.config.store.Domain entityDomain;
@@ -840,7 +840,7 @@ public class CertPolicyResource extends ProtectedResource
      * name does not exist.
      */
     @DeleteMapping("groups/domain/{group}/deleteFromGroup")
-    public ResponseEntity<Void> disassociatePolicyGroupFromDomains(@PathVariable("group") String groupName)
+    public ResponseEntity<Mono<Void>> disassociatePolicyGroupFromDomains(@PathVariable("group") String groupName)
     {
     	// make sure the group exists
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;

@@ -24,10 +24,7 @@ package org.nhindirect.config.resources;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
-
-import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
@@ -44,6 +41,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -52,6 +50,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
+
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Resource for managing certificate resources in the configuration service.
@@ -100,10 +101,10 @@ public class CertificateResource extends ProtectedResource
      * exist.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Collection<Certificate>> getAllCertificates()
+    public Flux<Certificate> getAllCertificates(ServerHttpResponse resp)
     {
 		
-		return getCertificatesByOwner(null);
+		return getCertificatesByOwner(null, resp);
     }
     
     /**
@@ -113,34 +114,29 @@ public class CertificateResource extends ProtectedResource
      * exist for the owner.
      */
     @GetMapping(value="/{owner}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Collection<Certificate>> getCertificatesByOwner(@PathVariable("owner") String owner)
-    {
-    	List<org.nhindirect.config.store.Certificate> retCertificates;
+    public Flux<Certificate> getCertificatesByOwner(@PathVariable("owner") String owner, ServerHttpResponse resp)
+    {  	
+    	resp.setStatusCode(HttpStatus.NO_CONTENT);
     	
     	try
     	{
-    		if (StringUtils.isEmpty(owner))
-    			retCertificates = certRepo.findAll();
-    		else
-    			retCertificates = certRepo.findByOwnerIgnoreCase(owner);
-    		
-    		if (retCertificates.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    		final List<org.nhindirect.config.store.Certificate> retCertificates = 
+    			(StringUtils.isEmpty(owner)) ? certRepo.findAll() : certRepo.findByOwnerIgnoreCase(owner);	
+ 	
+    		return Flux.fromStream(retCertificates.stream().
+    		    			map(cert -> 
+    		    			{
+    		    				resp.setStatusCode(HttpStatus.OK);
+    		    				CertificateUtils.stripP12Protection(cert, this.kspMgr);
+    		    				return EntityModelConversion.toModelCertificate(cert);	
+    		    			}));  
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up certificates.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	final Collection<Certificate> modelCerts = new ArrayList<Certificate>();
-    	retCertificates.forEach(cert-> 
-    	{
-    		CertificateUtils.stripP12Protection(cert, this.kspMgr);
-    		modelCerts.add(EntityModelConversion.toModelCertificate(cert));
-    	});
-
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelCerts);  	
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
+    	} 	
     }  
     
     /**
@@ -151,7 +147,7 @@ public class CertificateResource extends ProtectedResource
      * if no matching certificate is found.
      */
     @GetMapping(value="/{owner}/{thumbprint}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Certificate> getCertificatesByOwnerAndThumbprint(@PathVariable("owner") String owner, 
+    public ResponseEntity<Mono<Certificate>> getCertificatesByOwnerAndThumbprint(@PathVariable("owner") String owner, 
     		@PathVariable("thumbprint") String thumbprint)
     {
     	org.nhindirect.config.store.Certificate retCertificate = null;
@@ -190,7 +186,7 @@ public class CertificateResource extends ProtectedResource
     	}
 
 		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache)
-				.body(EntityModelConversion.toModelCertificate(retCertificate)); 
+				.body(Mono.just(EntityModelConversion.toModelCertificate(retCertificate))); 
     }  
     
     /**
@@ -200,7 +196,7 @@ public class CertificateResource extends ProtectedResource
      * @return Returns a status of 201 if the certificate was added or a status of 409 if the certificate already exists.
      */
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)       
-    public ResponseEntity<Void> addCertificate(@RequestBody Certificate cert, HttpServletRequest request)
+    public ResponseEntity<Mono<Void>> addCertificate(@RequestBody Certificate cert)
     {
     	// check to see if it already exists
     	CertContainer cont = null;
@@ -237,8 +233,7 @@ public class CertificateResource extends ProtectedResource
 			entCert = CertificateUtils.applyCertRepositoryAttributes(entCert, kspMgr);
     		certRepo.save(entCert);
     		
-    		final String requestUrl = request.getRequestURL().toString();
-    		final URI uri = new UriTemplate("{requestUrl}/{certificate}").expand(requestUrl, "certificate/" + entCert.getOwner());
+    		final URI uri = new UriTemplate("/{certificate}").expand("certificate/" + entCert.getOwner());
     		
     		return ResponseEntity.created(uri).cacheControl(noCache).build();
     		
@@ -256,7 +251,7 @@ public class CertificateResource extends ProtectedResource
      * @return Status of 200 if the certificates were deleted.
      */
     @DeleteMapping(value="ids/{ids}")   
-    public ResponseEntity<Void> removeCertificatesByIds(@PathVariable("ids") String ids)
+    public ResponseEntity<Mono<Void>> removeCertificatesByIds(@PathVariable("ids") String ids)
     {
     	final String[] idArray = ids.split(",");
     	final List<Long> idList = new ArrayList<>();
@@ -284,7 +279,7 @@ public class CertificateResource extends ProtectedResource
      * @return Status of 200 if the certificates were deleted.
      */
     @DeleteMapping(value="{owner}")  
-    public ResponseEntity<Void> removeCertificatesByOwner(@PathVariable("owner") String owner)
+    public ResponseEntity<Mono<Void>> removeCertificatesByOwner(@PathVariable("owner") String owner)
     {
     	try
     	{

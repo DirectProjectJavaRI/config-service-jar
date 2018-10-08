@@ -22,10 +22,7 @@ THE POSSIBILITY OF SUCH DAMAGE.
 package org.nhindirect.config.resources;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Collection;
-
-import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
@@ -38,6 +35,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,6 +47,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
+
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Resource for managing domain resources in the configuration service.
@@ -109,7 +110,7 @@ public class DomainResource extends ProtectedResource
      */
     @GetMapping(value="{domain}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public ResponseEntity<Domain> getDomain(@PathVariable("domain") String domain)
+    public ResponseEntity<Mono<Domain>> getDomain(@PathVariable("domain") String domain)
     {   	
     	try
     	{
@@ -117,7 +118,7 @@ public class DomainResource extends ProtectedResource
     		if (retDomain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(EntityModelConversion.toModelDomain(retDomain));
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(EntityModelConversion.toModelDomain(retDomain)));
     	}
     	catch (Exception e)
     	{
@@ -135,8 +136,8 @@ public class DomainResource extends ProtectedResource
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public ResponseEntity<Collection<Domain>> searchDomains(@RequestParam(name="domainName", defaultValue="") String domainName,
-    		@RequestParam(name="entityStatus", defaultValue="")String entityStatus)
+    public Flux<Domain> searchDomains(@RequestParam(name="domainName", defaultValue="") String domainName,
+    		@RequestParam(name="entityStatus", defaultValue="")String entityStatus, ServerHttpResponse resp)
     {
     	
     	org.nhindirect.config.store.EntityStatus status = null;
@@ -158,6 +159,8 @@ public class DomainResource extends ProtectedResource
     	// do the search
     	try
     	{
+    		resp.setStatusCode(HttpStatus.NO_CONTENT);
+    		
     		Collection<org.nhindirect.config.store.Domain> domains = null;
     		if (status == null && domainName.isEmpty())
     			domains = domainRepo.findAll();
@@ -168,19 +171,17 @@ public class DomainResource extends ProtectedResource
     		else
     			domains = domainRepo.findByDomainNameContainingIgnoreCaseAndStatus(domainName, status);
 
-    		if (domains.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
-    		
-    		final Collection<Domain> retDomains = new ArrayList<Domain>();
-    		domains.forEach(domain->
-    			retDomains.add(EntityModelConversion.toModelDomain(domain)));
-    			
-    		return  ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retDomains);   		
+    		return Flux.fromStream(domains.stream().
+    				map(domain -> {
+    					resp.setStatusCode(HttpStatus.OK);
+    					return EntityModelConversion.toModelDomain(domain);
+    				}));		
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up domains.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
     	}
     }
     
@@ -191,7 +192,7 @@ public class DomainResource extends ProtectedResource
      * @return Status of 201 if the domain was added or status of 409 if the domain already exists.
      */
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Void> addDomain(@RequestBody Domain domain, HttpServletRequest request) 
+    public ResponseEntity<Mono<Void>> addDomain(@RequestBody Domain domain) 
     {
     	
     	// check to see if it already exists
@@ -226,8 +227,7 @@ public class DomainResource extends ProtectedResource
     			}
     		}
     			
-    		final String requestUrl = request.getRequestURL().toString();
-    		final URI uri = new UriTemplate("{requestUrl}/{domain}").expand(requestUrl, "domain/" + domain.getDomainName());
+    		final URI uri = new UriTemplate("/{domain}").expand("domain/" + domain.getDomainName());
     		
     		return ResponseEntity.created(uri).cacheControl(noCache).build();
     	}
@@ -245,7 +245,7 @@ public class DomainResource extends ProtectedResource
      * @return Status of 204 if the domain is updated or 404 if a domain with the given name does not exist.
      */
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)     
-    public ResponseEntity<Void> updateDomain(@RequestBody Domain domain) 
+    public ResponseEntity<Mono<Void>> updateDomain(@RequestBody Domain domain) 
     {
     	// make sure the domain exists
     	org.nhindirect.config.store.Domain existingDomain;
@@ -308,7 +308,7 @@ public class DomainResource extends ProtectedResource
      * @return Status of 200 if the domain was deleted of status of 404 if a domain with the given name does not exists.
      */
     @DeleteMapping("{domain}")
-    public ResponseEntity<Void> removedDomain(@PathVariable("domain") String domain)   
+    public ResponseEntity<Mono<Void>> removedDomain(@PathVariable("domain") String domain)   
     {
     	// make sure it exists
     	try

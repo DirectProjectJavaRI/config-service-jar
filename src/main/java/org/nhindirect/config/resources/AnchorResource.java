@@ -26,8 +26,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import javax.servlet.http.HttpServletRequest;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.common.cert.Thumbprint;
@@ -38,6 +36,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -47,6 +46,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
+
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Resource for managing anchor resources in the configuration service.
@@ -93,40 +95,31 @@ public class AnchorResource extends ProtectedResource
      * anchors exist for the owner.
      */      
     @GetMapping(value="/{owner}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Collection<Anchor>> getAnchorForOwner(@RequestParam(name="incoming", defaultValue="false") boolean incoming, 
+    public Flux<Anchor> getAnchorForOwner(@RequestParam(name="incoming", defaultValue="false") boolean incoming, 
     		@RequestParam(name="outgoing", defaultValue="false") boolean outgoing, 
     		@RequestParam(name="thumbprint", defaultValue="") String thumbprint, 
-    		@PathVariable("owner") String owner)
+    		@PathVariable("owner") String owner, ServerHttpResponse resp)
     {
-    	List<org.nhindirect.config.store.Anchor> retAnchors;
+    	resp.setStatusCode(HttpStatus.NO_CONTENT);
     	
     	try
     	{
-    		retAnchors = anchorRepo.findByOwnerIgnoreCase(owner);
-    		if (retAnchors.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    		return Flux.fromStream(anchorRepo.findByOwnerIgnoreCase(owner).stream().
+    				filter(anchor -> !((incoming && !anchor.isIncoming()) || (outgoing && !anchor.isOutgoing()) ||
+    	    				(!thumbprint.isEmpty() && !thumbprint.equalsIgnoreCase(anchor.getThumbprint())))).
+    				map(anchor -> {
+    					resp.setStatusCode(HttpStatus.OK);
+    					return EntityModelConversion.toModelAnchor(anchor);			
+    				}));
     	}
     	catch (Exception e)
     	{
+    		resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
     		log.error("Error looking up anchors.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
+    		return Flux.empty();
     	}
-    	
-    	final Collection<Anchor> modelAnchors = new ArrayList<Anchor>();
+    
 
-    	retAnchors.forEach(anchor->
-    	{
-    		if (!((incoming && !anchor.isIncoming()) || (outgoing && !anchor.isOutgoing()) ||
-    				(!thumbprint.isEmpty() && !thumbprint.equalsIgnoreCase(anchor.getThumbprint()))))
-    		{
-    			modelAnchors.add(EntityModelConversion.toModelAnchor(anchor));
-    		}
-    	});
-    	
-		if (modelAnchors.isEmpty())
-			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
-		
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelAnchors);  	
     }
     
     /**
@@ -134,29 +127,24 @@ public class AnchorResource extends ProtectedResource
      * @return A JSON representation of a collection of all anchors in the system.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Collection<Anchor>> getAnchors()
+    public Flux<Anchor> getAnchors(ServerHttpResponse resp)
     {
-    	List<org.nhindirect.config.store.Anchor> retAnchors;
+    	resp.setStatusCode(HttpStatus.NO_CONTENT);
     	
     	try
     	{
-    		retAnchors = anchorRepo.findAll();
-    		if (retAnchors.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    		return Flux.fromStream(anchorRepo.findAll().stream().
+    				map(anchor -> {
+    					resp.setStatusCode(HttpStatus.OK);
+    					return EntityModelConversion.toModelAnchor(anchor);
+    				}));
     	}
     	catch (Exception e)
     	{
+    		resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
     		log.error("Error looking up anchors.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	final Collection<Anchor> modelAnchors = new ArrayList<Anchor>();
-    	retAnchors.forEach(anchor->
-    	{
-    		modelAnchors.add(EntityModelConversion.toModelAnchor(anchor));
-    	});
-		
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(modelAnchors);  
+    		return Flux.empty();
+    	}	
     }
     
     /**
@@ -167,7 +155,7 @@ public class AnchorResource extends ProtectedResource
      * a specific owner.
      */
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)     
-    public ResponseEntity<Void> addAnchor(@RequestBody Anchor anchor, HttpServletRequest request) 
+    public ResponseEntity<Mono<Void>> addAnchor(@RequestBody Anchor anchor) 
     {
     	// check to see if it already exists
     	try
@@ -193,8 +181,7 @@ public class AnchorResource extends ProtectedResource
     	{
     		anchorRepo.save(EntityModelConversion.toEntityAnchor(anchor));
     		
-    		final String requestUrl = request.getRequestURL().toString();
-    		final URI uri = new UriTemplate("{requestUrl}/{address}").expand(requestUrl, "anchor/" + anchor.getOwner());
+    		final URI uri = new UriTemplate("/{address}").expand("anchor/" + anchor.getOwner());
     		
     		return ResponseEntity.created(uri).cacheControl(noCache).build();
     	}
@@ -212,7 +199,7 @@ public class AnchorResource extends ProtectedResource
      * @return Status of 200 if the anchors were deleted successfully.
      */
     @DeleteMapping(value="ids/{ids}")   
-    public ResponseEntity<Void> removeAnchorsByIds(@PathVariable("ids")  String ids)
+    public ResponseEntity<Mono<Void>> removeAnchorsByIds(@PathVariable("ids")  String ids)
     {
     	final String[] idArray = ids.split(",");
     	final List<Long> idList = new ArrayList<>();
@@ -238,7 +225,7 @@ public class AnchorResource extends ProtectedResource
      * @return Status of 200 if the anchors were deleted successfully.
      */
     @DeleteMapping(value="{owner}")  
-    public ResponseEntity<Void> removeAnchorsByOwner(@PathVariable("owner") String owner)
+    public ResponseEntity<Mono<Void>> removeAnchorsByOwner(@PathVariable("owner") String owner)
     {
     	try
     	{

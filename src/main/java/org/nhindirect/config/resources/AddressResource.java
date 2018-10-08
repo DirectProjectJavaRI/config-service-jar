@@ -22,11 +22,6 @@ THE POSSIBILITY OF SUCH DAMAGE.
 package org.nhindirect.config.resources;
 
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
-import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -38,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,6 +44,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
+
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Resource for managing address resources in the configuration service.
@@ -106,7 +105,7 @@ public class AddressResource extends ProtectedResource
      * @param address The address to retrieve.
      */ 
     @GetMapping(value="/{address}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Address> getAddress(@PathVariable String address)
+    public ResponseEntity<Mono<Address>> getAddress(@PathVariable String address)
     {   	
     	try
     	{
@@ -114,7 +113,8 @@ public class AddressResource extends ProtectedResource
     		if (retAddress == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(EntityModelConversion.toModelAddress(retAddress));
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(
+    				Mono.just(EntityModelConversion.toModelAddress(retAddress)));
     	}
     	catch (Exception e)
     	{
@@ -130,7 +130,7 @@ public class AddressResource extends ProtectedResource
      * or a 204 status if no addresses are configured for the domain.
      */
     @GetMapping(value="domain/{domainName}", produces = MediaType.APPLICATION_JSON_VALUE)     
-    public ResponseEntity<Collection<Address>> getAddressesByDomain(@PathVariable String domainName)
+    public Flux<Address> getAddressesByDomain(@PathVariable String domainName, ServerHttpResponse resp)
     {   	
     	// get the domain
     	org.nhindirect.config.store.Domain domain = null;
@@ -138,30 +138,33 @@ public class AddressResource extends ProtectedResource
     	{
     		domain = domainRepo.findByDomainNameIgnoreCase(domainName);
     		if (domain == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
+    		{
+    			resp.setStatusCode(HttpStatus.NO_CONTENT);
+    			return Flux.empty();
+    		}
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up existing domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
     	}    	
     	
     	try
     	{
-    		final List<org.nhindirect.config.store.Address> addresses = addRepo.findByDomain(domain);
-    		if (addresses == null || addresses.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    		resp.setStatusCode(HttpStatus.NO_CONTENT);
     		
-    		final Collection<Address> retAddresses = new ArrayList<Address>();
-    		for (org.nhindirect.config.store.Address address : addresses)
-    			retAddresses.add(EntityModelConversion.toModelAddress(address));
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retAddresses);
+    		return Flux.fromStream(addRepo.findByDomain(domain).stream().
+    				map(address -> {
+    					resp.setStatusCode(HttpStatus.OK);
+    					return EntityModelConversion.toModelAddress(address);
+    				}));
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up addresses.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
+			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+			return Flux.empty();
     	}
     }
     
@@ -173,7 +176,7 @@ public class AddressResource extends ProtectedResource
      * the address already exists.
      */
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)   
-    public ResponseEntity<Void> addAddress(@RequestBody Address address, HttpServletRequest request) 
+    public ResponseEntity<Mono<Void>> addAddress(@RequestBody Address address) 
     {
     	// make sure the domain exists
     	if (address.getDomainName() == null || address.getDomainName().isEmpty())
@@ -210,8 +213,7 @@ public class AddressResource extends ProtectedResource
     	try
     	{
     		addRepo.save(toAdd);
-    		final String requestUrl = request.getRequestURL().toString();
-    		final URI uri = new UriTemplate("{requestUrl}/{address}").expand(requestUrl, "address/" + address.getEmailAddress());
+    		final URI uri = new UriTemplate("/{address}").expand("address/" + address.getEmailAddress());
     		
     		return ResponseEntity.created(uri).cacheControl(noCache).build();
     	}
@@ -230,7 +232,7 @@ public class AddressResource extends ProtectedResource
      * domain or address does not exist.
      */
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)     
-    public ResponseEntity<Void> updateAddress(@RequestBody Address address) 
+    public ResponseEntity<Mono<Void>> updateAddress(@RequestBody Address address) 
     {
     	// make sure the domain exists
     	if (address.getDomainName() == null || address.getDomainName().isEmpty())
@@ -288,7 +290,7 @@ public class AddressResource extends ProtectedResource
      */
     @DeleteMapping(value="{address}")  
     @Transactional
-    public ResponseEntity<Void> removedAddress(@PathVariable("address") String address)   
+    public ResponseEntity<Mono<Void>> removedAddress(@PathVariable("address") String address)   
     {
     	// make sure it exists
     	org.nhindirect.config.store.Address addr;

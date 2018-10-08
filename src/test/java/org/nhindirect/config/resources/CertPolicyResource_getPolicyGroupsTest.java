@@ -58,7 +58,6 @@ public class CertPolicyResource_getPolicyGroupsTest extends SpringBaseTest
 					});	
 				}
 				
-					
 				final ResponseEntity<Collection<CertPolicyGroup>> getGroups = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.GET, null, 
 						new ParameterizedTypeReference<Collection<CertPolicyGroup>>() {});
 
@@ -68,8 +67,6 @@ public class CertPolicyResource_getPolicyGroupsTest extends SpringBaseTest
 					throw new HttpClientErrorException(getGroups.getStatusCode());
 				else
 					doAssertions(getGroups.getBody());			
-
-				
 			}
 				
 			protected void doAssertions(Collection<CertPolicyGroup> groups) throws Exception
@@ -79,7 +76,7 @@ public class CertPolicyResource_getPolicyGroupsTest extends SpringBaseTest
 		}	
 		
 		@Test
-		public void testGetAllPolicies_assertPoliciesRetrieved()  throws Exception
+		public void testGetAllPolicyGroups_assertPolicyGroupsRetrieved()  throws Exception
 		{
 			new TestPlan()
 			{
