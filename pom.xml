@@ -18,7 +18,7 @@
 	<parent>
 	   <groupId>org.springframework.boot</groupId>
 	   <artifactId>spring-boot-dependencies</artifactId>
-	   <version>2.1.0.RC1</version>
+	   <version>2.1.0.RELEASE</version>
 	</parent>	
     <developers>
         <developer>
@@ -44,15 +44,7 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<camel.version>2.22.0</camel.version>
-	</properties>
-  	<repositories>
-	    <!-- Temp repository for Spring Boot Milestone -->
-        <repository>
-            <id>spring-milestone</id>
-            <name>Spring Milestone Releases</name>
-            <url>https://repo.spring.io/milestone/</url>
-        </repository>
-     </repositories>      	
+	</properties>   	
 	<dependencies>
 	    <dependency>
 		    <groupId>org.springframework.boot</groupId>
