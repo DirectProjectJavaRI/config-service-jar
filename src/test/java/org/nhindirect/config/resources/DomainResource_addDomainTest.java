@@ -7,6 +7,9 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
+import java.util.ArrayList;
+import java.util.Collection;
+
 import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
@@ -98,6 +101,51 @@ public class DomainResource_addDomainTest extends SpringBaseTest
 		}.perform();
 	}
 		
+	@Test
+	public void testAddDomain_addNewDomainWithAddresses_assertDomainCreated() throws Exception
+	{
+		new TestPlan()
+		{
+			protected Domain domain;
+			
+			@Override
+			protected Domain getDomainToAdd()
+			{
+				final Address postmasterAddress = new Address();
+				postmasterAddress.setEmailAddress("me@test.com");
+				
+				domain = new Domain();
+				
+				final Address addr = new Address();
+				addr.setEmailAddress("you@test.com");
+				addr.setStatus(EntityStatus.ENABLED);
+				Collection<Address> addrs = new ArrayList<Address>();
+				addrs.add(addr);
+				
+
+				
+				domain.setDomainName("test.com");
+				domain.setStatus(EntityStatus.ENABLED);
+				domain.setPostmasterAddress(postmasterAddress);			
+				domain.setAddresses(addrs);
+				
+				
+				return domain;
+			}
+			
+			@Override
+			protected void doAssertions(Domain domain) throws Exception
+			{
+				assertNotNull(domain);
+				assertEquals(this.domain.getDomainName(), domain.getDomainName());
+				assertEquals(this.domain.getStatus(), domain.getStatus());
+				assertEquals(this.domain.getPostmasterAddress().getEmailAddress(), domain.getPostmasterAddress().getEmailAddress());
+				assertEquals(2, domain.getAddresses().size());
+				
+			}
+		}.perform();
+	}
+	
 	@Test
 	public void testAddDomain_addNewDomain_alreadyExists_assertConfilic() throws Exception
 	{

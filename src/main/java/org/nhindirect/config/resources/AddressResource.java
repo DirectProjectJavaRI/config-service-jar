@@ -207,8 +207,7 @@ public class AddressResource extends ProtectedResource
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     	
-    	final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address);
-    	toAdd.setDomain(domain);
+    	final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address, domain);
     	
     	try
     	{
@@ -265,9 +264,8 @@ public class AddressResource extends ProtectedResource
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     	
-    	final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address);
+    	final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address, domain);
     	toAdd.setId(existingAdd.getId());
-    	toAdd.setDomain(domain);
     	
     	try
     	{

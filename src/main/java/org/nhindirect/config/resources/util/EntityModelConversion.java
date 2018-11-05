@@ -64,7 +64,7 @@ public class EntityModelConversion
 		{
 			for (Address address : domain.getAddresses())
 			{
-				addresses.add(toEntityAddress(address));
+				addresses.add(toEntityAddress(address, retVal));
 			}
 		}
 		retVal.setAddresses(addresses);
@@ -146,7 +146,7 @@ public class EntityModelConversion
     	return retVal;
 	}
 	
-    public static org.nhindirect.config.store.Address toEntityAddress(Address address)
+    public static org.nhindirect.config.store.Address toEntityAddress(Address address, org.nhindirect.config.store.Domain domain)
     {
     	if (address == null)
     		return null;
@@ -161,6 +161,7 @@ public class EntityModelConversion
     		retVal.setStatus(org.nhindirect.config.store.EntityStatus.valueOf(address.getStatus().toString()));
     	retVal.setType(address.getType());
     	retVal.setUpdateTime(address.getUpdateTime());
+    	retVal.setDomain(domain);
     	
     	return retVal;
     }
