@@ -35,7 +35,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -136,8 +135,8 @@ public class DomainResource extends ProtectedResource
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public Flux<Domain> searchDomains(@RequestParam(name="domainName", defaultValue="") String domainName,
-    		@RequestParam(name="entityStatus", defaultValue="")String entityStatus, ServerHttpResponse resp)
+    public ResponseEntity<Flux<Domain>> searchDomains(@RequestParam(name="domainName", defaultValue="") String domainName,
+    		@RequestParam(name="entityStatus", defaultValue="")String entityStatus)
     {
     	
     	org.nhindirect.config.store.EntityStatus status = null;
@@ -159,8 +158,7 @@ public class DomainResource extends ProtectedResource
     	// do the search
     	try
     	{
-    		resp.setStatusCode(HttpStatus.NO_CONTENT);
-    		
+
     		Collection<org.nhindirect.config.store.Domain> domains = null;
     		if (status == null && domainName.isEmpty())
     			domains = domainRepo.findAll();
@@ -171,17 +169,17 @@ public class DomainResource extends ProtectedResource
     		else
     			domains = domainRepo.findByDomainNameContainingIgnoreCaseAndStatus(domainName, status);
 
-    		return Flux.fromStream(domains.stream().
+    		final Flux<Domain> retVal = Flux.fromStream(domains.stream().
     				map(domain -> {
-    					resp.setStatusCode(HttpStatus.OK);
     					return EntityModelConversion.toModelDomain(domain);
     				}));		
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up domains.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     }
     

@@ -47,7 +47,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -153,29 +152,27 @@ public class TrustBundleResource extends ProtectedResource
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public Flux<TrustBundle> getTrustBundles(@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors, ServerHttpResponse resp)
+    public ResponseEntity<Flux<TrustBundle>> getTrustBundles(@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors)
     {
     	try
     	{
-    		resp.setStatusCode(HttpStatus.NO_CONTENT);
-    		
     		final Collection<TrustBundle> retBundles = bundleRepo.findAll().stream().
     				map(bundle -> 
     				{
-    					resp.setStatusCode(HttpStatus.OK);
     		    		if (!fetchAnchors)
     		    			bundle.setTrustBundleAnchors(new ArrayList<TrustBundleAnchor>()); 					
     					return EntityModelConversion.toModelTrustBundle(bundle);
     				}).
     				collect(Collectors.toList());
     		
-    		return Flux.fromIterable(retBundles);	
+    		final Flux<TrustBundle> retVal = Flux.fromIterable(retBundles);	
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
     	catch (Throwable e)
     	{
     		log.error("Error looking up trust bundles", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     }
     
@@ -189,8 +186,8 @@ public class TrustBundleResource extends ProtectedResource
      */
     @GetMapping(value="domains/{domainName}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public Flux<TrustBundleDomainReltn> getTrustBundlesByDomain(@PathVariable("domainName") String domainName, 
-    		@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors, ServerHttpResponse resp)
+    public ResponseEntity<Flux<TrustBundleDomainReltn>> getTrustBundlesByDomain(@PathVariable("domainName") String domainName, 
+    		@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors)
     {
     	
     	// make sure the domain exists
@@ -200,26 +197,20 @@ public class TrustBundleResource extends ProtectedResource
     		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
     		if (entityDomain == null)
     		{
-    			resp.setStatusCode(HttpStatus.NOT_FOUND);
-    			return Flux.empty();
+    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		}    		
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up domain.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
 
     	try
     	{
-    		resp.setStatusCode(HttpStatus.NO_CONTENT);
-    		
     		final Collection<TrustBundleDomainReltn> retReltns = reltnRepo.findByDomain(entityDomain).stream().
     				map(bundleReltn -> 
     				{ 
-    					resp.setStatusCode(HttpStatus.OK);
-    					
     		    		if (!fetchAnchors)
     		    			bundleReltn.getTrustBundle().setTrustBundleAnchors(new ArrayList<TrustBundleAnchor>());
     		    		
@@ -233,13 +224,14 @@ public class TrustBundleResource extends ProtectedResource
     				}).
     				collect(Collectors.toList());
     		
-    		return Flux.fromIterable(retReltns);	
+    		final Flux<TrustBundleDomainReltn> retVal = Flux.fromIterable(retReltns);	
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
     	catch (Throwable e)
     	{
     		log.error("Error looking up trust bundles", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     }
     

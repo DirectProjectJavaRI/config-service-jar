@@ -36,7 +36,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -95,28 +94,29 @@ public class AnchorResource extends ProtectedResource
      * anchors exist for the owner.
      */      
     @GetMapping(value="/{owner}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Flux<Anchor> getAnchorForOwner(@RequestParam(name="incoming", defaultValue="false") boolean incoming, 
+    public ResponseEntity<Flux<Anchor>> getAnchorForOwner(@RequestParam(name="incoming", defaultValue="false") boolean incoming, 
     		@RequestParam(name="outgoing", defaultValue="false") boolean outgoing, 
     		@RequestParam(name="thumbprint", defaultValue="") String thumbprint, 
-    		@PathVariable("owner") String owner, ServerHttpResponse resp)
+    		@PathVariable("owner") String owner)
     {
-    	resp.setStatusCode(HttpStatus.NO_CONTENT);
     	
     	try
     	{
-    		return Flux.fromStream(anchorRepo.findByOwnerIgnoreCase(owner).stream().
+    		
+    		
+    		final Flux<Anchor> retVal = Flux.fromStream(anchorRepo.findByOwnerIgnoreCase(owner).stream().
     				filter(anchor -> !((incoming && !anchor.isIncoming()) || (outgoing && !anchor.isOutgoing()) ||
     	    				(!thumbprint.isEmpty() && !thumbprint.equalsIgnoreCase(anchor.getThumbprint())))).
     				map(anchor -> {
-    					resp.setStatusCode(HttpStatus.OK);
     					return EntityModelConversion.toModelAnchor(anchor);			
     				}));
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
     	catch (Exception e)
     	{
-    		resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
     		log.error("Error looking up anchors.", e);
-    		return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     
 
@@ -127,23 +127,22 @@ public class AnchorResource extends ProtectedResource
      * @return A JSON representation of a collection of all anchors in the system.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public Flux<Anchor> getAnchors(ServerHttpResponse resp)
+    public ResponseEntity<Flux<Anchor>> getAnchors()
     {
-    	resp.setStatusCode(HttpStatus.NO_CONTENT);
-    	
+
     	try
     	{
-    		return Flux.fromStream(anchorRepo.findAll().stream().
+    		final Flux<Anchor> retVal= Flux.fromStream(anchorRepo.findAll().stream().
     				map(anchor -> {
-    					resp.setStatusCode(HttpStatus.OK);
     					return EntityModelConversion.toModelAnchor(anchor);
     				}));
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
     	catch (Exception e)
     	{
-    		resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
     		log.error("Error looking up anchors.", e);
-    		return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}	
     }
     

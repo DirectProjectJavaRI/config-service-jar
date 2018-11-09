@@ -36,7 +36,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -96,15 +95,13 @@ public class DNSResource extends ProtectedResource
      * a status of 204 if no records match the search criteria.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public Flux<DNSRecord> getDNSRecords(@RequestParam(name="type", defaultValue = "-1")int type, 
-    		@RequestParam(name="name", defaultValue="") String name, ServerHttpResponse resp)
+    public ResponseEntity<Flux<DNSRecord>> getDNSRecords(@RequestParam(name="type", defaultValue = "-1")int type, 
+    		@RequestParam(name="name", defaultValue="") String name)
     {
     	Collection<org.nhindirect.config.store.DNSRecord> retRecords;
     	
     	try
     	{
-    		resp.setStatusCode(HttpStatus.NO_CONTENT);
-    		
 	    	if (type > -1 && !name.isEmpty())
 	    	{
 	    		if (type == Type.ANY)
@@ -124,24 +121,22 @@ public class DNSResource extends ProtectedResource
 	    	else
 	    	{
         		log.error("Either a DNS query name or type (or both) must be specified.");
-    			resp.setStatusCode(HttpStatus.BAD_REQUEST);
-    			return Flux.empty();		
+        		return ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(noCache).build();
 	    	}
 	    		
 	    	
-    		return 
-    				Flux.fromStream(retRecords.stream().
+    		final Flux<DNSRecord> retVal = Flux.fromStream(retRecords.stream().
     				map(record -> {
-    					resp.setStatusCode(HttpStatus.OK);
     					return EntityModelConversion.toModelDNSRecord(record);
     				}));
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
 	    		
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up DNS records.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     	  	
     }

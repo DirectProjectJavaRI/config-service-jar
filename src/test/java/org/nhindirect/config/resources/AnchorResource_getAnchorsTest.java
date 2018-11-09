@@ -159,7 +159,7 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 			@Override
 			protected void doAssertions(Collection<Anchor> anchors, int statusCode)
 			{
-				assertEquals(204, statusCode);
+				assertEquals(200, statusCode);
 				assertNotNull(anchors);
 				assertTrue(anchors.isEmpty());
 				

@@ -33,7 +33,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -130,7 +129,7 @@ public class AddressResource extends ProtectedResource
      * or a 204 status if no addresses are configured for the domain.
      */
     @GetMapping(value="domain/{domainName}", produces = MediaType.APPLICATION_JSON_VALUE)     
-    public Flux<Address> getAddressesByDomain(@PathVariable String domainName, ServerHttpResponse resp)
+    public ResponseEntity<Flux<Address>> getAddressesByDomain(@PathVariable String domainName)
     {   	
     	// get the domain
     	org.nhindirect.config.store.Domain domain = null;
@@ -139,32 +138,28 @@ public class AddressResource extends ProtectedResource
     		domain = domainRepo.findByDomainNameIgnoreCase(domainName);
     		if (domain == null)
     		{
-    			resp.setStatusCode(HttpStatus.NO_CONTENT);
-    			return Flux.empty();
+    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     		}
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up existing domain.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}    	
+    	
     	
     	try
     	{
-    		resp.setStatusCode(HttpStatus.NO_CONTENT);
-    		
-    		return Flux.fromStream(addRepo.findByDomain(domain).stream().
+    		final Flux<Address> retVal = Flux.fromStream(addRepo.findByDomain(domain).stream().
     				map(address -> {
-    					resp.setStatusCode(HttpStatus.OK);
     					return EntityModelConversion.toModelAddress(address);
     				}));
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up addresses.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     }
     

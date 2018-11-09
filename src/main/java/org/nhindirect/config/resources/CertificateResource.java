@@ -41,7 +41,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -101,10 +100,10 @@ public class CertificateResource extends ProtectedResource
      * exist.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public Flux<Certificate> getAllCertificates(ServerHttpResponse resp)
+    public ResponseEntity<Flux<Certificate>> getAllCertificates()
     {
 		
-		return getCertificatesByOwner(null, resp);
+		return getCertificatesByOwner(null);
     }
     
     /**
@@ -114,28 +113,26 @@ public class CertificateResource extends ProtectedResource
      * exist for the owner.
      */
     @GetMapping(value="/{owner}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Flux<Certificate> getCertificatesByOwner(@PathVariable("owner") String owner, ServerHttpResponse resp)
-    {  	
-    	resp.setStatusCode(HttpStatus.NO_CONTENT);
-    	
+    public ResponseEntity<Flux<Certificate>> getCertificatesByOwner(@PathVariable("owner") String owner)
+    {  	    	
     	try
     	{
     		final List<org.nhindirect.config.store.Certificate> retCertificates = 
     			(StringUtils.isEmpty(owner)) ? certRepo.findAll() : certRepo.findByOwnerIgnoreCase(owner);	
  	
-    		return Flux.fromStream(retCertificates.stream().
+    		final Flux<Certificate> retVal = Flux.fromStream(retCertificates.stream().
     		    			map(cert -> 
     		    			{
-    		    				resp.setStatusCode(HttpStatus.OK);
     		    				CertificateUtils.stripP12Protection(cert, this.kspMgr);
     		    				return EntityModelConversion.toModelCertificate(cert);	
     		    			}));  
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up certificates.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	} 	
     }  
     

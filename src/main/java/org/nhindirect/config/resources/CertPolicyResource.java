@@ -42,7 +42,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -133,24 +132,22 @@ public class CertPolicyResource extends ProtectedResource
      * no certificate policies exists.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public Flux<CertPolicy> getPolicies(ServerHttpResponse resp)
+    public ResponseEntity<Flux<CertPolicy>> getPolicies()
     {
-    	resp.setStatusCode(HttpStatus.NO_CONTENT);
-    	
     	try
     	{
-    		return Flux.fromStream(policyRepo.findAll().stream().
+    		final Flux<CertPolicy> retVal = Flux.fromStream(policyRepo.findAll().stream().
     				map(pol -> {
-    					resp.setStatusCode(HttpStatus.OK);
     					return EntityModelConversion.toModelCertPolicy(pol);				
     				}));
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     		
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up cert policies.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+       		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	} 	
     }
     
@@ -307,26 +304,24 @@ public class CertPolicyResource extends ProtectedResource
      */
     @GetMapping(value="groups", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public Flux<CertPolicyGroup> getPolicyGroups(ServerHttpResponse resp)
+    public ResponseEntity<Flux<CertPolicyGroup>> getPolicyGroups()
     {    	
-    	
-    	resp.setStatusCode(HttpStatus.NO_CONTENT);
     	try
     	{
     		final Collection<CertPolicyGroup> retGroups = groupRepo.findAll().stream().
     		   map(group -> {
-    			   resp.setStatusCode(HttpStatus.OK);
     			   return EntityModelConversion.toModelCertPolicyGroup(group);
     		   }).
     		   collect(Collectors.toList());
     		   
-    		return Flux.fromIterable(retGroups);
+    		final Flux<CertPolicyGroup> retVal = Flux.fromIterable(retGroups);
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up cert policy groups.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}   	
     }  
     
@@ -611,28 +606,25 @@ public class CertPolicyResource extends ProtectedResource
      */
     @GetMapping(value="/groups/domain", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public Flux<CertPolicyGroupDomainReltn> getPolicyGroupDomainReltns(ServerHttpResponse resp)
+    public ResponseEntity<Flux<CertPolicyGroupDomainReltn>> getPolicyGroupDomainReltns()
     {    	
-    	resp.setStatusCode(HttpStatus.NO_CONTENT);
-    	
     	try
     	{
     		final Collection<CertPolicyGroupDomainReltn> retReltns = reltnRepo.findAll().stream().
  	    		   map(reltn -> 
  	    		   {
- 	    			  resp.setStatusCode(HttpStatus.OK);
  	    			  return EntityModelConversion.toModelCertPolicyGroupDomainReltn(reltn);   			   
  	    		   }).
  	    		   collect(Collectors.toList());
  	    		   
- 	        return Flux.fromIterable(retReltns);    		
+ 	        final Flux<CertPolicyGroupDomainReltn> retVal = Flux.fromIterable(retReltns);    		
     		
+ 	       return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up policy group/domain relations.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}  
     }
     
@@ -645,7 +637,7 @@ public class CertPolicyResource extends ProtectedResource
      */
     @GetMapping(value="groups/domain/{domain}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly=true)
-    public Flux<CertPolicyGroup> getPolicyGroupsByDomain(@PathVariable("domain") String domainName, ServerHttpResponse resp)
+    public ResponseEntity<Flux<CertPolicyGroup>> getPolicyGroupsByDomain(@PathVariable("domain") String domainName)
     {
     	// make sure the domain exists
     	org.nhindirect.config.store.Domain entityDomain;
@@ -654,36 +646,33 @@ public class CertPolicyResource extends ProtectedResource
     		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
     		if (entityDomain == null)
     		{
-    			resp.setStatusCode(HttpStatus.NOT_FOUND);
-    			return Flux.empty();
+    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		}
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up domain.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	} 
     	
     	try
     	{
-    		resp.setStatusCode(HttpStatus.NO_CONTENT);
-    		
+
     		final Collection<CertPolicyGroup> retReltns = reltnRepo.findByDomain(entityDomain).stream().
     	    		   map(reltn -> {
-    	    			   resp.setStatusCode(HttpStatus.OK);
     	    			   return EntityModelConversion.toModelCertPolicyGroup(reltn.getCertPolicyGroup());		   
     	    		   }).
     	    		   collect(Collectors.toList());
     	    		   
-    	    return Flux.fromIterable(retReltns);
+    	    final Flux<CertPolicyGroup> retVal = Flux.fromIterable(retReltns);
     		
+    	    return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
+    	    
     	}
     	catch (Exception e)
     	{
     		log.error("Error looking up cert policy groups.", e);
-			resp.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-			return Flux.empty();
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     	       	
     }
