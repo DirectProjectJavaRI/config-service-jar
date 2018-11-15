@@ -8,6 +8,9 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.Collection;
+
 import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
@@ -85,9 +88,16 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 				
 				domain = new Domain();
 				
+				final Address addr = new Address();
+				addr.setEmailAddress("you@test.com");
+				addr.setStatus(EntityStatus.ENABLED);
+				Collection<Address> addrs = new ArrayList<Address>();
+				addrs.add(addr);
+				
 				domain.setDomainName("test.com");
 				domain.setStatus(EntityStatus.ENABLED);
 				domain.setPostmasterAddress(postmasterAddress);			
+				domain.setAddresses(addrs);
 				
 				return domain;
 			}
