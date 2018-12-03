@@ -64,6 +64,11 @@ public class DomainResource extends ProtectedResource
     private static final Log log = LogFactory.getLog(DomainResource.class);
 
     /**
+     * Trust bundle resource injected by Spring
+     */
+    protected TrustBundleResource bundleResource;
+    
+    /**
      * Address repository is injected by Spring
      */
     protected AddressRepository addRepo;
@@ -100,6 +105,16 @@ public class DomainResource extends ProtectedResource
     {
         this.domainRepo = domainRepo;
     }
+    
+    /**
+     * Sets the trust bundle resource.  Auto populate by Spring
+     * @param bundleResource The trust bundle resource.
+     */
+    @Autowired
+    public void setAddressResource(TrustBundleResource bundleResource) 
+    {
+        this.bundleResource = bundleResource;
+    } 
     
     /**
      * Gets a domain by name.
@@ -309,7 +324,6 @@ public class DomainResource extends ProtectedResource
     @DeleteMapping("{domain}")
     public ResponseEntity<Mono<Void>> removedDomain(@PathVariable("domain") String domain)   
     {
-    	// make sure it exists
     	try
     	{
     		if (domainRepo.findByDomainNameIgnoreCase(domain) == null)
@@ -323,6 +337,9 @@ public class DomainResource extends ProtectedResource
     	
     	try
     	{
+    		// remove any associations to bundles
+    		bundleResource.disassociateTrustBundlesFromDomain(domain);
+    		
     		domainRepo.deleteByDomainNameIgnoreCase(domain);
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();

@@ -53,6 +53,7 @@ import org.apache.commons.logging.LogFactory;
 import org.bouncycastle.cms.CMSProcessableByteArray;
 import org.bouncycastle.cms.CMSSignedData;
 import org.bouncycastle.cms.SignerInformation;
+import org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder;
 import org.nhindirect.common.crypto.CryptoExtensions;
 import org.nhindirect.common.options.OptionsManager;
 import org.nhindirect.common.options.OptionsParameter;
@@ -323,7 +324,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		    			
 		    			try
 		    			{
-				    		if (sigInfo.verify(signingCert, CryptoExtensions.getJCEProviderName()))
+				    		if (sigInfo.verify(new JcaSimpleSignerInfoVerifierBuilder().setProvider(CryptoExtensions.getJCEProviderName()).build(signingCert)))
 				    		{
 				    			sigVerified = true;
 				    			break;

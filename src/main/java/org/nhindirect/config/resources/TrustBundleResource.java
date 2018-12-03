@@ -176,6 +176,39 @@ public class TrustBundleResource extends ProtectedResource
     	}
     }
     
+    @GetMapping(value="domains/bundles/reltns", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Transactional(readOnly=true)
+    public ResponseEntity<Flux<TrustBundleDomainReltn>> getAllTrustBundleDomainRelts(@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors)
+    {
+    	try
+    	{
+    		final Collection<TrustBundleDomainReltn> retReltns = reltnRepo.findAll().stream().
+    				map(bundleReltn -> 
+    				{ 
+    		    		if (!fetchAnchors)
+    		    			bundleReltn.getTrustBundle().setTrustBundleAnchors(new ArrayList<TrustBundleAnchor>());
+    		    		
+    		    		final TrustBundleDomainReltn newReltn = new TrustBundleDomainReltn();
+    		    		newReltn.setIncoming(bundleReltn.isIncoming());
+    		    		newReltn.setOutgoing(bundleReltn.isOutgoing());
+    		    		newReltn.setDomain(EntityModelConversion.toModelDomain(bundleReltn.getDomain()));
+    		    		newReltn.setTrustBundle(EntityModelConversion.toModelTrustBundle(bundleReltn.getTrustBundle()));
+    		    		
+    		    		return newReltn;
+    				}).
+    				collect(Collectors.toList());
+    		
+    		final Flux<TrustBundleDomainReltn> retVal = Flux.fromIterable(retReltns);	
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
+    	}
+    	catch (Throwable e)
+    	{
+    		log.error("Error looking up trust bundles", e);
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
+    	}    	
+    }
+    
     /**
      * Gets all trust bundles associated to a domain.
      * @param domainName The name of the domain to fetch trust bundles for.
@@ -692,5 +725,5 @@ public class TrustBundleResource extends ProtectedResource
     		log.error("Error disassociating trust bundle from domains.", e);
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}  
-    }    
+    }  
 }
