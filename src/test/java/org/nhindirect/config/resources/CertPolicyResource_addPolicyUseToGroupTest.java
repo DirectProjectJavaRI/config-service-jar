@@ -139,6 +139,23 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 
 				doAssertions(getGroup.getBody());
 				
+				/*
+				 * Delete the polices just so we can test the ability to delete policies
+				 * that are part of a use
+				 */
+				if (policiesToAdd != null)
+				{
+					policiesToAdd.forEach(addPolicy->
+					{
+						final ResponseEntity<Void> delResp = testRestTemplate.exchange("/certpolicy/{name}", 
+								HttpMethod.DELETE, null, Void.class,
+								addPolicy.getPolicyName());
+
+						if (delResp.getStatusCodeValue() != 200)
+							throw new HttpClientErrorException(resp.getStatusCode());
+					});	
+					
+				}
 			}
 				
 			protected void doAssertions(CertPolicyGroup group) throws Exception
