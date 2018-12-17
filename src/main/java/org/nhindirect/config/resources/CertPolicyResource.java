@@ -23,11 +23,21 @@ package org.nhindirect.config.resources;
 
 import java.net.URI;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
+
+import javax.persistence.EntityManager;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.hibernate.Criteria;
+import org.hibernate.ScrollMode;
+import org.hibernate.ScrollableResults;
+import org.hibernate.Session;
+import org.hibernate.StatelessSession;
+import org.hibernate.criterion.CriteriaSpecification;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
 import org.nhindirect.config.model.CertPolicyGroupDomainReltn;
@@ -53,6 +63,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
 
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -76,6 +87,11 @@ public class CertPolicyResource extends ProtectedResource
     protected CertPolicyGroupDomainReltnRepository reltnRepo;
     
     protected DomainRepository domainRepo;
+    
+    protected CertPolicyResource transactionalThisProxy;
+    
+    @Autowired
+    protected EntityManager entityManager;
     
     /**
      * Constructor
@@ -124,6 +140,12 @@ public class CertPolicyResource extends ProtectedResource
     public void setCertPolicyGroupDomainReltnRepository(CertPolicyGroupDomainReltnRepository reltnRepo) 
     {
         this.reltnRepo = reltnRepo;
+    }
+    
+    @Autowired 
+    public void setInternalThisProxy(CertPolicyResource internalProxy)
+    {
+    	transactionalThisProxy = internalProxy;
     }
     
     /**
@@ -221,7 +243,7 @@ public class CertPolicyResource extends ProtectedResource
      * @param policyName The name of the certificate policy.
      * @return Status of 200 if the policy was delete or 404 if a certificate policy with the given name does not exist.
      */
-    @DeleteMapping(value="{policyName}")   
+    @DeleteMapping(value="{policyName}") 
     public ResponseEntity<Mono<Void>> removePolicyByName(@PathVariable("policyName") String policyName)
     {
     	// make sure it exists
@@ -238,6 +260,42 @@ public class CertPolicyResource extends ProtectedResource
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     	
+    	/*
+    	 * Need to remove this policy from any possible group that it belongs to.
+    	 * 
+    	 */
+    	
+    	Map<CertPolicyGroupUse, String> usesToRemove = new HashMap<>();
+		try (final StatelessSession session = ((Session) entityManager.getDelegate()).getSessionFactory().openStatelessSession()) 
+		{
+			@SuppressWarnings("deprecation")
+			final Criteria criteria = session.createCriteria(CertPolicyGroupReltn.class).setCacheable(false).setFetchSize(1000)
+					.setResultTransformer(CriteriaSpecification.DISTINCT_ROOT_ENTITY);
+			
+			final ScrollableResults results = criteria.scroll(ScrollMode.FORWARD_ONLY);
+			
+			while (results.next())
+			{
+				final CertPolicyGroupReltn reltn = (CertPolicyGroupReltn)results.get(0);
+				if (reltn.getCertPolicy().getPolicyName().equals(policyName))
+				{
+	    			final CertPolicyGroupUse use = new CertPolicyGroupUse();
+	    			
+	    			use.setPolicy(EntityModelConversion.toModelCertPolicy(reltn.getCertPolicy()));
+	    			if (reltn.getPolicyUse() != null)
+	    				use.setPolicyUse(org.nhindirect.config.model.CertPolicyUse.valueOf(reltn.getPolicyUse().toString()));
+	    			use.setIncoming(reltn.isIncoming());
+	    			use.setOutgoing(reltn.isOutgoing());
+
+					
+					usesToRemove.put(use, reltn.getCertPolicyGroup().getPolicyGroupName());
+				}
+			}
+		}
+    	
+		usesToRemove.forEach((use, groupName) -> transactionalThisProxy.removedPolicyUseFromGroup(groupName, use));
+
+	
     	try
     	{
     		policyRepo.deleteById(enitityPolicy.getId());
