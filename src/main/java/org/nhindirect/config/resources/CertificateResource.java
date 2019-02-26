@@ -195,12 +195,26 @@ public class CertificateResource extends ProtectedResource
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)       
     public ResponseEntity<Mono<Void>> addCertificate(@RequestBody Certificate cert)
     {
-    	// check to see if it already exists
     	CertContainer cont = null;
+		cont = CertUtils.toCertContainer(cert.getData());
+		// get the owner if it doesn't alreay exists
+		if ((cert.getOwner() == null || cert.getOwner().isEmpty()))
+		{
+			if (cont != null && cont.getCert() != null)
+			{
+				
+				// now get the owner info from the cert
+				final String theOwner = CertUtils.getOwner(cont.getCert());
+
+				if (theOwner != null && !theOwner.isEmpty())
+					cert.setOwner(theOwner);
+			}
+		}
+    	
+    	// check to see if it already exists
+
     	try
-    	{
-    		cont = CertUtils.toCertContainer(cert.getData());
-    		
+    	{    		
     		if (certRepo.findByOwnerIgnoreCaseAndThumbprint(cert.getOwner(), Thumbprint.toThumbprint(cont.getCert()).toString()) != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
@@ -211,21 +225,7 @@ public class CertificateResource extends ProtectedResource
     	}
     
     	try
-    	{
-    		// get the owner if it doesn't alreay exists
-			if ((cert.getOwner() == null || cert.getOwner().isEmpty()))
-			{
-				if (cont != null && cont.getCert() != null)
-				{
-					
-					// now get the owner info from the cert
-					final String theOwner = CertUtils.getOwner(cont.getCert());
-
-					if (theOwner != null && !theOwner.isEmpty())
-						cert.setOwner(theOwner);
-				}
-			}
-    		
+    	{	
 			org.nhindirect.config.store.Certificate entCert = EntityModelConversion.toEntityCertificate(cert);
 			entCert = CertificateUtils.applyCertRepositoryAttributes(entCert, kspMgr);
     		certRepo.save(entCert);
