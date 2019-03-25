@@ -23,7 +23,6 @@ package org.nhindirect.config.resources;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
@@ -161,9 +160,15 @@ public class CertificateResource extends ProtectedResource
             	retCertificates = certRepo.findByThumbprint(thumbprint);  		
             else
             {
-            	retCertificate = certRepo.findByOwnerIgnoreCaseAndThumbprint(owner, thumbprint);
-            	if (retCertificate != null)
-            		retCertificates = Arrays.asList(retCertificate);
+            	retCertificates = new ArrayList<>();
+            	List<org.nhindirect.config.store.Certificate> potentialCerts = certRepo.findByOwnerIgnoreCase(owner);
+
+            	if (!potentialCerts.isEmpty())
+            	{
+            		for (org.nhindirect.config.store.Certificate cert : potentialCerts)
+            			if (cert.getThumbprint().equals(thumbprint))
+            				retCertificates.add(cert);
+            	}
             }
             	
     		if (retCertificates == null || retCertificates.isEmpty())

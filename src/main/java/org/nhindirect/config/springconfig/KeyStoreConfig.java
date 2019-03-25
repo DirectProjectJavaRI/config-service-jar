@@ -70,16 +70,4 @@ public class KeyStoreConfig
 			   throw new RuntimeException(e);
 		  }
 	  }
-	  
-	  @Bean	  
-	  @ConditionalOnProperty(name="direct.config.keystore.hsmpresent", havingValue="false", matchIfMissing=true)
-	  public KeyStoreProtectionManager nonHSMKeyStoreProtectionManager()
-	  {
-		  LOGGER.info("No HSM configured.");
-		  
-		  final BootstrappedKeyStoreProtectionManager mgr = new BootstrappedKeyStoreProtectionManager(keyStorePassPhrase, privateKeyPassPhrase);
-		  
-		  return mgr;
-	  }
-	  
 }
