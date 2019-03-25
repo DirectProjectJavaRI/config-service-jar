@@ -282,7 +282,7 @@ public class CertificateResource_getCertificatesByOwnerAndThumbprintTest extends
 						
 
 						CertificateRepository mockDAO = mock(CertificateRepository.class);
-						doThrow(new RuntimeException()).when(mockDAO).findByOwnerIgnoreCaseAndThumbprint((String)any(), (String)any());
+						doThrow(new RuntimeException()).when(mockDAO).findByOwnerIgnoreCase((String)any());
 						
 						certService.setCertificateRepository(mockDAO);
 					}
