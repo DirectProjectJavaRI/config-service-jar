@@ -161,12 +161,12 @@ public class CertificateResource extends ProtectedResource
             else
             {
             	retCertificates = new ArrayList<>();
-            	List<org.nhindirect.config.store.Certificate> potentialCerts = certRepo.findByOwnerIgnoreCase(owner);
+            	List<org.nhindirect.config.store.Certificate> potentialCerts = certRepo.findByThumbprint(thumbprint);
 
             	if (!potentialCerts.isEmpty())
             	{
             		for (org.nhindirect.config.store.Certificate cert : potentialCerts)
-            			if (cert.getThumbprint().equals(thumbprint))
+            			if (cert.getOwner().equalsIgnoreCase(owner))
             				retCertificates.add(cert);
             	}
             }
