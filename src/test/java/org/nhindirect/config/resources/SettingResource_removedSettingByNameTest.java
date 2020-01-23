@@ -20,6 +20,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 
+import reactor.core.publisher.Mono;
+
 public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 {
 	@Autowired
@@ -92,7 +94,8 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					Collection<org.nhindirect.config.store.Setting> retrievedSettings = settingRepo.findAll();
+					Collection<org.nhindirect.config.store.Setting> retrievedSettings = settingRepo.findAll().collectList().block();
+				
 					
 					assertNotNull(retrievedSettings);
 					assertEquals(0, retrievedSettings.size());
@@ -191,7 +194,7 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 
 						SettingRepository mockDAO = mock(SettingRepository.class);
 						org.nhindirect.config.store.Setting setting = new org.nhindirect.config.store.Setting();
-						when(mockDAO.findByNameIgnoreCase(eq("setting1"))).thenReturn(setting);
+						when(mockDAO.findByNameIgnoreCase(eq("setting1"))).thenReturn(Mono.just(setting));
 						doThrow(new RuntimeException()).when(mockDAO).deleteByNameIgnoreCase(eq("setting1"));
 						
 						settingService.setSettingRepository(mockDAO);

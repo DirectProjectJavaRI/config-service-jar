@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.nhind</groupId>
 	<artifactId>config-service-jar</artifactId>
-	<version>6.0.4</version>
+	<version>7.0</version>
 	<packaging>jar</packaging>
 	<name>NHIN Direct Java RI config service jar</name>
     <description>NHIN Direct Java RI config service jar.</description>	
@@ -18,7 +18,7 @@
 	<parent>
 	   <groupId>org.springframework.boot</groupId>
 	   <artifactId>spring-boot-dependencies</artifactId>
-	   <version>2.1.6.RELEASE</version>
+	   <version>2.2.4.RELEASE</version>
 	</parent>	
     <developers>
         <developer>
@@ -44,19 +44,31 @@
           <url>http://nhindirect.org/BSDLicense</url>
        </license>
     </licenses>
+	<repositories>
+		<repository>
+			<id>spring-milestones</id>
+			<name>Spring Milestones</name>
+			<url>https://repo.spring.io/milestone</url>
+		</repository>    		
+	</repositories>     
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<camel.version>2.22.0</camel.version>
 	</properties>   	
 	<dependencies>
-	    <dependency>
-		    <groupId>org.springframework.boot</groupId>
-		    <artifactId>spring-boot-starter-data-jpa</artifactId>
-	    </dependency>	
 		<dependency>
 		    <groupId>org.springframework.boot</groupId>
 		    <artifactId>spring-boot-starter-webflux</artifactId>
-		</dependency>			 			
+		</dependency>	
+	    <dependency>
+	        <groupId>org.springframework.boot</groupId>
+	        <artifactId>spring-boot-starter-tomcat</artifactId>
+	    </dependency>			
+		<dependency>
+		    <groupId>org.flywaydb</groupId>
+		    <artifactId>flyway-core</artifactId>
+		    <version>6.1.4</version>
+		</dependency>				 			
 		<dependency>
 		    <groupId>com.fasterxml.jackson.core</groupId>
 		    <artifactId>jackson-databind</artifactId>
@@ -64,18 +76,23 @@
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>config-store</artifactId>
-			<version>6.0.1</version>
+			<version>7.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>config-model</artifactId>
-			<version>6.0</version>
+			<version>7.0</version>
 		</dependency>		
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>direct-common</artifactId>
-			<version>6.0</version>	
-		</dependency>									
+			<version>7.0</version>	
+		</dependency>	
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>28.2-jre</version>	
+		</dependency>										
 	      <dependency>
 	        <groupId>org.apache.camel</groupId>
 	        <artifactId>camel-core</artifactId>
@@ -99,7 +116,7 @@
 		  <dependency>
 		    <groupId>org.bouncycastle</groupId>
 		    <artifactId>bcprov-jdk15on</artifactId>
-		    <version>1.60</version>    
+		    <version>1.64</version>    
 		  </dependency> 	   
 	      <dependency>
 	        <groupId>org.apache.camel</groupId>
@@ -132,7 +149,24 @@
 		    <artifactId>camel-spring-boot-starter</artifactId>
 		    <version>2.22.0</version>
 		    <scope>test</scope>		    
-		</dependency>							        	 	            		
+		</dependency>	
+		<dependency>
+		    <groupId>com.h2database</groupId>
+		    <artifactId>h2</artifactId>
+		    <scope>test</scope>
+		</dependency>	
+	    <dependency>
+	      <groupId>org.springframework.boot.experimental</groupId>
+	      <artifactId>spring-boot-starter-r2dbc-h2</artifactId>
+	      <version>0.1.0.M1</version>
+	      <scope>test</scope>
+	    </dependency>	
+	    <dependency>
+	       <groupId>io.r2dbc</groupId>
+	       <artifactId>r2dbc-h2</artifactId>
+	       <version>0.8.1.RELEASE</version>
+	       <scope>test</scope>
+	     </dependency>									        	 	            		
 	</dependencies>
 	<build>
 		<plugins>
@@ -212,8 +246,7 @@
 	                </goals>
 	              </execution>
 	            </executions>					
-			</plugin>	
-			<!--  for releases only 					
+			</plugin>					
 	        <plugin>
                <groupId>org.apache.maven.plugins</groupId>
                <artifactId>maven-gpg-plugin</artifactId>
@@ -226,8 +259,7 @@
                     </goals>
                  </execution>
                </executions>
-            </plugin>
-            -->				
+            </plugin>		
 		</plugins>			
 	</build>
 	<reporting>

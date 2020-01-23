@@ -6,7 +6,7 @@ import static org.mockito.Mockito.when;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,6 +23,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+
+import reactor.core.publisher.Mono;
 
 public class CertPolicyResource_updatePolicyAttributesTest extends SpringBaseTest
 {
@@ -289,7 +291,7 @@ public class CertPolicyResource_updatePolicyAttributesTest extends SpringBaseTes
 						super.setupMocks();
 						
 						CertPolicyRepository mockDAO = mock(CertPolicyRepository.class);
-						when(mockDAO.findByPolicyNameIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.CertPolicy());
+						when(mockDAO.findByPolicyNameIgnoreCase((String)any())).thenReturn(Mono.just(new org.nhindirect.config.store.CertPolicy()));
 						doThrow(new RuntimeException()).when(mockDAO).save((org.nhindirect.config.store.CertPolicy)any());
 						
 						certService.setCertPolicyRepository(mockDAO);

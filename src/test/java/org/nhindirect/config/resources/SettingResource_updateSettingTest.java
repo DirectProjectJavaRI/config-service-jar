@@ -18,6 +18,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 
+import reactor.core.publisher.Mono;
+
 public class SettingResource_updateSettingTest extends SpringBaseTest
 {
 	@Autowired
@@ -211,7 +213,7 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 
 						SettingRepository mockDAO = mock(SettingRepository.class);
 						org.nhindirect.config.store.Setting setting = new org.nhindirect.config.store.Setting();
-						when(mockDAO.findByNameIgnoreCase(eq("setting1"))).thenReturn(setting);
+						when(mockDAO.findByNameIgnoreCase(eq("setting1"))).thenReturn(Mono.just(setting));
 						doThrow(new RuntimeException()).when(mockDAO).save((org.nhindirect.config.store.Setting)any());
 						
 						settingService.setSettingRepository(mockDAO);

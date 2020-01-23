@@ -33,7 +33,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -108,12 +107,14 @@ public class AddressResource extends ProtectedResource
     {   	
     	try
     	{
-    		org.nhindirect.config.store.Address retAddress = addRepo.findByEmailAddressIgnoreCase(address);
+    		org.nhindirect.config.store.Address retAddress = addRepo.findByEmailAddressIgnoreCase(address).block();
     		if (retAddress == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
+    		org.nhindirect.config.store.Domain domain = domainRepo.findById(retAddress.getDomainId()).block();
+    		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(
-    				Mono.just(EntityModelConversion.toModelAddress(retAddress)));
+    				Mono.just(EntityModelConversion.toModelAddress(retAddress, domain.getDomainName())));
     	}
     	catch (Exception e)
     	{
@@ -135,7 +136,7 @@ public class AddressResource extends ProtectedResource
     	org.nhindirect.config.store.Domain domain = null;
     	try
     	{
-    		domain = domainRepo.findByDomainNameIgnoreCase(domainName);
+    		domain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
     		if (domain == null)
     		{
     			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
@@ -150,10 +151,10 @@ public class AddressResource extends ProtectedResource
     	
     	try
     	{
-    		final Flux<Address> retVal = Flux.fromStream(addRepo.findByDomain(domain).stream().
-    				map(address -> {
-    					return EntityModelConversion.toModelAddress(address);
-    				}));
+    		final Flux<Address> retVal = addRepo.findByDomainId(domain.getId())
+    				.map(address -> {
+    					return EntityModelConversion.toModelAddress(address, domainName);
+    				});
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
     	catch (Exception e)
@@ -180,7 +181,7 @@ public class AddressResource extends ProtectedResource
     	org.nhindirect.config.store.Domain domain;
     	try
     	{
-    		domain = domainRepo.findByDomainNameIgnoreCase(address.getDomainName());
+    		domain = domainRepo.findByDomainNameIgnoreCase(address.getDomainName()).block();
 	    	if (domain == null)
 	    		return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -193,7 +194,7 @@ public class AddressResource extends ProtectedResource
     	// check to see if it already exists
     	try
     	{
-    		if (addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress()) != null)
+    		if (addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress()).block() != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -203,10 +204,11 @@ public class AddressResource extends ProtectedResource
     	}
     	
     	final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address, domain);
+    	toAdd.setId(null);
     	
     	try
     	{
-    		addRepo.save(toAdd);
+    		addRepo.save(toAdd).block();
     		final URI uri = new UriTemplate("/{address}").expand("address/" + address.getEmailAddress());
     		
     		return ResponseEntity.created(uri).cacheControl(noCache).build();
@@ -235,7 +237,7 @@ public class AddressResource extends ProtectedResource
     	org.nhindirect.config.store.Domain domain;
     	try
     	{
-    		domain = domainRepo.findByDomainNameIgnoreCase(address.getDomainName());
+    		domain = domainRepo.findByDomainNameIgnoreCase(address.getDomainName()).block();
 	    	if (domain == null)
 	    		return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -249,7 +251,7 @@ public class AddressResource extends ProtectedResource
     	org.nhindirect.config.store.Address existingAdd = null;
     	try
     	{
-    		existingAdd = addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress());
+    		existingAdd = addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress()).block();
     		if (existingAdd == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -264,7 +266,7 @@ public class AddressResource extends ProtectedResource
     	
     	try
     	{
-    		addRepo.save(toAdd);
+    		addRepo.save(toAdd).block();
     		
     		return ResponseEntity.noContent().cacheControl(noCache).build();
     	}
@@ -282,14 +284,13 @@ public class AddressResource extends ProtectedResource
      * @return Returns a status of 200 if the address was removed or 404 if the address does not exists.
      */
     @DeleteMapping(value="{address}")  
-    @Transactional
     public ResponseEntity<Mono<Void>> removedAddress(@PathVariable("address") String address)   
     {
     	// make sure it exists
     	org.nhindirect.config.store.Address addr;
     	try
     	{
-    		addr = addRepo.findByEmailAddressIgnoreCase(address);
+    		addr = addRepo.findByEmailAddressIgnoreCase(address).block();
     		if (addr == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -300,26 +301,8 @@ public class AddressResource extends ProtectedResource
     	}
     	
     	try
-    	{    		
-    		org.nhindirect.config.store.Domain dom = domainRepo.findById(addr.getDomain().getId()).get();
-    		
-    		org.nhindirect.config.store.Address addrToDelete = null;
-    		
-    		for (org.nhindirect.config.store.Address existingAddr : dom.getAddresses())
-    		{
-    			if (existingAddr.getId() == addr.getId())
-    			{
-    				addrToDelete = existingAddr;
-    				break;
-    			}
-    		}
-    		
-    		if (addrToDelete != null)
-    		{
-    			dom.getAddresses().remove(addrToDelete);
-    			domainRepo.save(dom);
-    		}
-    		addRepo.delete(addr);
+    	{    
+    		addRepo.deleteById(addr.getId()).block();
 
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}

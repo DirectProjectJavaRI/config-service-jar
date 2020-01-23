@@ -91,10 +91,10 @@ public class SettingResource extends ProtectedResource
     {
     	try
     	{
-    		final Flux<Setting> retVal = Flux.fromStream(settingRepo.findAll().stream().
-    		    	map(setting -> {	    		
+    		final Flux<Setting> retVal = settingRepo.findAll()
+    		    	.map(setting -> {	    		
     		    		return EntityModelConversion.toModelSetting(setting);
-    		    	}));   
+    		    	});   
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
@@ -115,7 +115,7 @@ public class SettingResource extends ProtectedResource
     {    	
     	try
     	{
-    		final Collection<org.nhindirect.config.store.Setting> retSettings = settingRepo.findByNameIgnoreCaseIn(Arrays.asList(name.toUpperCase()));
+    		final Collection<org.nhindirect.config.store.Setting> retSettings = settingRepo.findByNameIgnoreCaseIn(Arrays.asList(name.toUpperCase())).collectList().block();
     		if (retSettings.isEmpty())
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
@@ -156,7 +156,7 @@ public class SettingResource extends ProtectedResource
     	// check to see if it already exists
     	try
     	{
-    		if (settingRepo.findByNameIgnoreCase(name) != null)
+    		if (settingRepo.findByNameIgnoreCase(name).block() != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -172,7 +172,9 @@ public class SettingResource extends ProtectedResource
     		final org.nhindirect.config.store.Setting addSetting = new org.nhindirect.config.store.Setting();
     		addSetting.setName(name);
     		addSetting.setValue(value);
-    		settingRepo.save(addSetting);
+    		addSetting.setId(null);
+    		
+    		settingRepo.save(addSetting).block();
     		
 
     		final URI uri = new UriTemplate("/{name}").expand("setting/" + name);
@@ -201,8 +203,8 @@ public class SettingResource extends ProtectedResource
     	// make sure it exists
     	try
     	{
-    		retSetting = settingRepo.findByNameIgnoreCase(name);
-    		if (settingRepo.findByNameIgnoreCase(name) == null)
+    		retSetting = settingRepo.findByNameIgnoreCase(name).block();
+    		if (retSetting == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -214,7 +216,7 @@ public class SettingResource extends ProtectedResource
     	try
     	{
     		retSetting.setValue(value);
-    		settingRepo.save(retSetting);
+    		settingRepo.save(retSetting).block();
     		
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -237,7 +239,7 @@ public class SettingResource extends ProtectedResource
     	// check to see if it already exists
     	try
     	{
-    		if (settingRepo.findByNameIgnoreCase(name) == null)
+    		if (settingRepo.findByNameIgnoreCase(name).block() == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -248,7 +250,7 @@ public class SettingResource extends ProtectedResource
     	
     	try
     	{
-    		settingRepo.deleteByNameIgnoreCase(name);
+    		settingRepo.deleteByNameIgnoreCase(name).block();
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}

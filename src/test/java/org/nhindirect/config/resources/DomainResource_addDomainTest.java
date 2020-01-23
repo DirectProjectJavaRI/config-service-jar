@@ -3,7 +3,7 @@ package org.nhindirect.config.resources;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
@@ -160,8 +160,8 @@ public class DomainResource_addDomainTest extends SpringBaseTest
 				
 				org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
 				domain.setDomainName("test.com");
-				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED);
-				domainRepo.save(domain);
+				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED.ordinal());
+				domainRepo.save(domain).block();
 				
 			}
 			

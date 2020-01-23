@@ -51,8 +51,8 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			{
 				final org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
 				domain.setDomainName(domainName);
-				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED);
-				domainRepo.save(domain);
+				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED.ordinal());
+				domainRepo.save(domain).block();
 				
 				addAddress.setDomainName(domainName);
 			}
@@ -247,8 +247,8 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 				
 				org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
 				domain.setDomainName("test.com");
-				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED);
-				domain = domainRepo.save(domain);
+				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED.ordinal());
+				domain = domainRepo.save(domain).block();
 				
 				org.nhindirect.config.store.Address address = new org.nhindirect.config.store.Address();
 				
@@ -256,10 +256,10 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 				address.setType("email");
 				address.setEndpoint("none");
 				address.setDisplayName("me");
-				address.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED);
-				address.setDomain(domain);
+				address.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED.ordinal());
+				address.setDomainId(domain.getId());
 				
-				addressRepo.save(address);
+				addressRepo.save(address).block();
 			}
 			
 			@Override

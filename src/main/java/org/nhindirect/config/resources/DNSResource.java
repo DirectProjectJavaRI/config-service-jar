@@ -22,10 +22,8 @@ THE POSSIBILITY OF SUCH DAMAGE.
 package org.nhindirect.config.resources;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -98,7 +96,7 @@ public class DNSResource extends ProtectedResource
     public ResponseEntity<Flux<DNSRecord>> getDNSRecords(@RequestParam(name="type", defaultValue = "-1")int type, 
     		@RequestParam(name="name", defaultValue="") String name)
     {
-    	Collection<org.nhindirect.config.store.DNSRecord> retRecords;
+    	Flux<org.nhindirect.config.store.DNSRecord> retRecords;
     	
     	try
     	{
@@ -125,10 +123,10 @@ public class DNSResource extends ProtectedResource
 	    	}
 	    		
 	    	
-    		final Flux<DNSRecord> retVal = Flux.fromStream(retRecords.stream().
-    				map(record -> {
+    		final Flux<DNSRecord> retVal = retRecords
+    				.map(record -> {
     					return EntityModelConversion.toModelDNSRecord(record);
-    				}));
+    				});
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
 	    		
@@ -162,7 +160,7 @@ public class DNSResource extends ProtectedResource
     	// check to see if it already exists
     	try
     	{
-    		final Collection<org.nhindirect.config.store.DNSRecord> records = dnsRepo.findByNameIgnoreCaseAndType(record.getName(), record.getType());
+    		final Collection<org.nhindirect.config.store.DNSRecord> records = dnsRepo.findByNameIgnoreCaseAndType(record.getName(), record.getType()).collectList().block();
 
     			for (org.nhindirect.config.store.DNSRecord compareRecord : records)
     				// do a binary compare of the data
@@ -178,7 +176,10 @@ public class DNSResource extends ProtectedResource
     	
     	try
     	{
-    		dnsRepo.save(EntityModelConversion.toEntityDNSRecord(record));
+    		org.nhindirect.config.store.DNSRecord addRec = EntityModelConversion.toEntityDNSRecord(record);
+    		addRec.setId(null);
+    		
+    		dnsRepo.save(addRec).block();
     		    		
     		final URI uri = new UriTemplate("/dns?{type}&name={name}").expand(record.getType(),  record.getName());
     		
@@ -202,7 +203,7 @@ public class DNSResource extends ProtectedResource
     	// ensure it exists 
     	try
     	{
-    		if (!dnsRepo.findById(updateRecord.getId()).isPresent())
+    		if (!dnsRepo.findById(updateRecord.getId()).blockOptional().isPresent())
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -216,7 +217,7 @@ public class DNSResource extends ProtectedResource
     	
     	try
     	{
-    		dnsRepo.save(EntityModelConversion.toEntityDNSRecord(updateRecord));
+    		dnsRepo.save(EntityModelConversion.toEntityDNSRecord(updateRecord)).block();
     		
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -236,14 +237,11 @@ public class DNSResource extends ProtectedResource
     public ResponseEntity<Mono<Void>> removeDNSRecordsByIds(@PathVariable("ids") String ids)
     {
     	final String[] idArray = ids.split(",");
-    	final List<Long> idList = new ArrayList<>(idArray.length);
     	
     	try
     	{
     		for (String id : idArray)
-    			idList.add(Long.parseLong(id));
-    		
-    		dnsRepo.deleteByIdIn(idList);
+    			dnsRepo.deleteById(Long.parseLong(id)).block();
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}

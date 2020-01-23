@@ -104,12 +104,12 @@ public class AnchorResource extends ProtectedResource
     	{
     		
     		
-    		final Flux<Anchor> retVal = Flux.fromStream(anchorRepo.findByOwnerIgnoreCase(owner).stream().
-    				filter(anchor -> !((incoming && !anchor.isIncoming()) || (outgoing && !anchor.isOutgoing()) ||
-    	    				(!thumbprint.isEmpty() && !thumbprint.equalsIgnoreCase(anchor.getThumbprint())))).
-    				map(anchor -> {
+    		final Flux<Anchor> retVal = anchorRepo.findByOwnerIgnoreCase(owner)
+    				.filter(anchor -> !((incoming && !anchor.isIncoming()) || (outgoing && !anchor.isOutgoing()) ||
+    	    				(!thumbprint.isEmpty() && !thumbprint.equalsIgnoreCase(anchor.getThumbprint()))))
+    				.map(anchor -> {
     					return EntityModelConversion.toModelAnchor(anchor);			
-    				}));
+    				});
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
@@ -132,10 +132,10 @@ public class AnchorResource extends ProtectedResource
 
     	try
     	{
-    		final Flux<Anchor> retVal= Flux.fromStream(anchorRepo.findAll().stream().
-    				map(anchor -> {
+    		final Flux<Anchor> retVal= anchorRepo.findAll()
+    				.map(anchor -> {
     					return EntityModelConversion.toModelAnchor(anchor);
-    				}));
+    				});
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
@@ -162,7 +162,7 @@ public class AnchorResource extends ProtectedResource
     		final String thumbprint = (anchor.getThumbprint() == null || anchor.getThumbprint().isEmpty()) ?
     				Thumbprint.toThumbprint(anchor.getAnchorAsX509Certificate()).toString() : anchor.getThumbprint();
     				
-    		final Collection<org.nhindirect.config.store.Anchor> existingAnchors = anchorRepo.findByOwnerIgnoreCase(anchor.getOwner());
+    		final Collection<org.nhindirect.config.store.Anchor> existingAnchors = anchorRepo.findByOwnerIgnoreCase(anchor.getOwner()).collectList().block();
     		
     		for (org.nhindirect.config.store.Anchor existingAnchor : existingAnchors)
     		{
@@ -178,7 +178,10 @@ public class AnchorResource extends ProtectedResource
     	
     	try
     	{
-    		anchorRepo.save(EntityModelConversion.toEntityAnchor(anchor));
+    		org.nhindirect.config.store.Anchor addAnchor = EntityModelConversion.toEntityAnchor(anchor);
+    		addAnchor.setId(null);
+    		
+    		anchorRepo.save(addAnchor).block();
     		
     		final URI uri = new UriTemplate("/{address}").expand("anchor/" + anchor.getOwner());
     		
@@ -207,7 +210,7 @@ public class AnchorResource extends ProtectedResource
     		for (String id : idArray)
     			idList.add(Long.parseLong(id));
     		
-    		anchorRepo.deleteByIdIn(idList);
+    		anchorRepo.deleteByIdIn(idList).block();
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -228,7 +231,7 @@ public class AnchorResource extends ProtectedResource
     {
     	try
     	{
-    		anchorRepo.deleteByOwnerIgnoreCase(owner);
+    		anchorRepo.deleteByOwnerIgnoreCase(owner).block();
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}

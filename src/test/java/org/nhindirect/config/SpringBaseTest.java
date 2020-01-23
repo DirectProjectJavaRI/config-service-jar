@@ -8,12 +8,14 @@ import org.junit.runner.RunWith;
 import org.nhindirect.config.repository.AddressRepository;
 import org.nhindirect.config.repository.AnchorRepository;
 import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
+import org.nhindirect.config.repository.CertPolicyGroupReltnRepository;
 import org.nhindirect.config.repository.CertPolicyGroupRepository;
 import org.nhindirect.config.repository.CertPolicyRepository;
 import org.nhindirect.config.repository.CertificateRepository;
 import org.nhindirect.config.repository.DNSRepository;
 import org.nhindirect.config.repository.DomainRepository;
 import org.nhindirect.config.repository.SettingRepository;
+import org.nhindirect.config.repository.TrustBundleAnchorRepository;
 import org.nhindirect.config.repository.TrustBundleDomainReltnRepository;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +42,9 @@ public abstract class SpringBaseTest
 	protected TrustBundleRepository bundleRepo;	
 	
 	@Autowired
+	protected TrustBundleAnchorRepository bundleAnchorRepo;	
+	
+	@Autowired
 	protected TrustBundleDomainReltnRepository bundleDomainRepo;
 	
 	@Autowired
@@ -64,7 +69,10 @@ public abstract class SpringBaseTest
 	protected CertPolicyGroupRepository policyGroupRepo;
 	
 	@Autowired
-	protected CertPolicyGroupDomainReltnRepository groupReltnRepo;
+	protected CertPolicyGroupDomainReltnRepository groupDomainReltnRepo;
+	
+	@Autowired
+	protected CertPolicyGroupReltnRepository policyGroupReltn;
 	
 	@Before
 	public void setUp()
@@ -101,27 +109,31 @@ public abstract class SpringBaseTest
 	
 	protected void cleanDataStore() throws Exception
 	{		
-		anchorRepo.deleteAll();
+		anchorRepo.deleteAll().block();
 		
-		groupReltnRepo.deleteAll();
+		groupDomainReltnRepo.deleteAll().block();
 		
-		addressRepo.deleteAll();
+		policyGroupReltn.deleteAll().block();
 		
-		bundleDomainRepo.deleteAll();
+		addressRepo.deleteAll().block();
 		
-		bundleRepo.deleteAll();
+		bundleAnchorRepo.deleteAll().block();
 		
-		domainRepo.deleteAll();
+		bundleDomainRepo.deleteAll().block();
 		
-		policyGroupRepo.deleteAll();
+		bundleRepo.deleteAll().block();
 		
-		policyRepo.deleteAll();
+		domainRepo.deleteAll().block();
 		
-		certRepo.deleteAll();
+		policyGroupRepo.deleteAll().block();
 		
-		dnsRepo.deleteAll();
+		policyRepo.deleteAll().block();
 		
-		settingRepo.deleteAll();
+		certRepo.deleteAll().block();
+		
+		dnsRepo.deleteAll().block();
+		
+		settingRepo.deleteAll().block();
 	
 	}
 }

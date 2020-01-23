@@ -4,7 +4,7 @@ import static org.mockito.Matchers.eq;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
@@ -56,8 +56,8 @@ public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 			{
 				final org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
 				domain.setDomainName(domainName);
-				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED);
-				domainRepo.save(domain);
+				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED.ordinal());
+				domainRepo.save(domain).block();
 				
 				if (addAddress != null)
 					addAddress.setDomainName(domainName);
@@ -291,7 +291,7 @@ public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 					super.setupMocks();
 
 					AddressRepository mockDAO = mock(AddressRepository.class);
-					doThrow(new RuntimeException()).when(mockDAO).findByDomain((org.nhindirect.config.store.Domain)any());
+					doThrow(new RuntimeException()).when(mockDAO).findByDomainId(any());
 					
 					addressService.setAddressRepository(mockDAO);
 				}

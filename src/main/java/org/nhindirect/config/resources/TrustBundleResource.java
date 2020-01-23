@@ -26,7 +26,9 @@ import java.net.URI;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.camel.ProducerTemplate;
 import org.apache.commons.lang3.StringUtils;
@@ -36,7 +38,9 @@ import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.model.TrustBundleDomainReltn;
 import org.nhindirect.config.model.exceptions.CertificateConversionException;
 import org.nhindirect.config.model.utils.CertUtils;
+import org.nhindirect.config.repository.AddressRepository;
 import org.nhindirect.config.repository.DomainRepository;
+import org.nhindirect.config.repository.TrustBundleAnchorRepository;
 import org.nhindirect.config.repository.TrustBundleDomainReltnRepository;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
@@ -47,7 +51,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -81,6 +84,11 @@ public class TrustBundleResource extends ProtectedResource
     protected TrustBundleRepository bundleRepo;
   
     /**
+     * TrustBundleAnchor repository is injected by Spring
+     */
+    protected TrustBundleAnchorRepository bundleAnchorRepo;
+    
+    /**
      * TrustBundleDomainReltn repository is injected by Spring
      */
     protected TrustBundleDomainReltnRepository reltnRepo;
@@ -89,6 +97,11 @@ public class TrustBundleResource extends ProtectedResource
      * Domain repository is injected by Spring
      */
     protected DomainRepository domainRepo;
+    
+    /**
+     * Address repository is injected by Spring
+     */
+    protected AddressRepository addRepo;
     
     /**
      * Producer template is defined in the context XML file an injected by Spring
@@ -114,6 +127,16 @@ public class TrustBundleResource extends ProtectedResource
     }
     
     /**
+     * Sets the trustBundleAnchor repository.  Auto populate by Spring
+     * @param bundleAnchorRepo The trustBundle anchor repository.
+     */
+    @Autowired
+    public void setTrustBundleRepository(TrustBundleAnchorRepository bundleAnchorRepo) 
+    {
+        this.bundleAnchorRepo = bundleAnchorRepo;
+    }
+    
+    /**
      * Sets the trustBundleDomainReltn repository.  Auto populate by Spring
      * @param reltnRepo The trustBundleDomainReltn repository.
      */
@@ -134,6 +157,16 @@ public class TrustBundleResource extends ProtectedResource
     }
     
     /**
+     * Sets the address repository.  Auto populated by Spring
+     * @param addRepo Address repository
+     */
+    @Autowired
+    public void setAddressRepository(AddressRepository addRepo) 
+    {
+        this.addRepo = addRepo;
+    }
+    
+    /**
      * Sets the producer template.  Auto populate by Spring
      * @param template The producer template.
      */
@@ -151,21 +184,32 @@ public class TrustBundleResource extends ProtectedResource
      * @return A JSON representation of a collection of all trust bundles in the system.  Returns a status of 204 if no trust bundles exist.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional(readOnly=true)
     public ResponseEntity<Flux<TrustBundle>> getTrustBundles(@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors)
     {
     	try
     	{
-    		final Collection<TrustBundle> retBundles = bundleRepo.findAll().stream().
-    				map(bundle -> 
-    				{
-    		    		if (!fetchAnchors)
-    		    			bundle.setTrustBundleAnchors(new ArrayList<TrustBundleAnchor>()); 					
-    					return EntityModelConversion.toModelTrustBundle(bundle);
-    				}).
-    				collect(Collectors.toList());
+    		final Flux<TrustBundle> retVal = bundleRepo.findAll()
+    		.flatMap(bundle -> 
+    		{
+    			
+    			final Flux<TrustBundleAnchor> anchorFlux = (!fetchAnchors) ? Flux.fromIterable(new ArrayList<TrustBundleAnchor>()) :
+    							bundleAnchorRepo.findByTrustBundleId(bundle.getId());
+
+    			return anchorFlux.map(anchor -> new BundleAnchorTuple(bundle, anchor))
+    			.switchIfEmpty(Mono.just(new BundleAnchorTuple(bundle, null)))
+    			.collectList();
+    		})
+    		.map(tupls ->
+    		{
+    			final List<org.nhindirect.config.store.TrustBundleAnchor> anchors = new ArrayList<>();
+    			
+    			for (BundleAnchorTuple tupl : tupls)
+    				if (tupl.getAnchor() != null)
+    					anchors.add(tupl.getAnchor());
+    			
+    			return EntityModelConversion.toModelTrustBundle(tupls.get(0).getBundle() , anchors);
+    		});
     		
-    		final Flux<TrustBundle> retVal = Flux.fromIterable(retBundles);	
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
@@ -177,28 +221,29 @@ public class TrustBundleResource extends ProtectedResource
     }
     
     @GetMapping(value="domains/bundles/reltns", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional(readOnly=true)
     public ResponseEntity<Flux<TrustBundleDomainReltn>> getAllTrustBundleDomainRelts(@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors)
     {
     	try
     	{
-    		final Collection<TrustBundleDomainReltn> retReltns = reltnRepo.findAll().stream().
-    				map(bundleReltn -> 
+    		final Flux<TrustBundleDomainReltn> retVal = reltnRepo.findAll()
+    				.map(bundleReltn -> 
     				{ 
-    		    		if (!fetchAnchors)
-    		    			bundleReltn.getTrustBundle().setTrustBundleAnchors(new ArrayList<TrustBundleAnchor>());
-    		    		
+    					final List<TrustBundleAnchor> anchors = (!fetchAnchors) ? new ArrayList<TrustBundleAnchor>() :
+							bundleAnchorRepo.findByTrustBundleId(bundleReltn.getTrustBundleId()).collectList().block();
+
+    					final List<org.nhindirect.config.store.Address> addrs = (!fetchAnchors) ? new ArrayList<org.nhindirect.config.store.Address>() :
+    						addRepo.findByDomainId(bundleReltn.getDomainId()).collectList().block();
+    					
     		    		final TrustBundleDomainReltn newReltn = new TrustBundleDomainReltn();
+
     		    		newReltn.setIncoming(bundleReltn.isIncoming());
     		    		newReltn.setOutgoing(bundleReltn.isOutgoing());
-    		    		newReltn.setDomain(EntityModelConversion.toModelDomain(bundleReltn.getDomain()));
-    		    		newReltn.setTrustBundle(EntityModelConversion.toModelTrustBundle(bundleReltn.getTrustBundle()));
+    		    		newReltn.setDomain(EntityModelConversion.toModelDomain(domainRepo.findById(bundleReltn.getDomainId()).block(), addrs));
+    		    		newReltn.setTrustBundle(EntityModelConversion.toModelTrustBundle(bundleRepo.findById(bundleReltn.getTrustBundleId()).block(), anchors));
     		    		
     		    		return newReltn;
-    				}).
-    				collect(Collectors.toList());
+    				});
     		
-    		final Flux<TrustBundleDomainReltn> retVal = Flux.fromIterable(retReltns);	
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
@@ -218,7 +263,6 @@ public class TrustBundleResource extends ProtectedResource
      * 404 if a domain with the given name does not exist or a status of 404 if no trust bundles are associated with the given name.
      */
     @GetMapping(value="domains/{domainName}", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional(readOnly=true)
     public ResponseEntity<Flux<TrustBundleDomainReltn>> getTrustBundlesByDomain(@PathVariable("domainName") String domainName, 
     		@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors)
     {
@@ -227,7 +271,7 @@ public class TrustBundleResource extends ProtectedResource
     	org.nhindirect.config.store.Domain entityDomain;
     	try
     	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
+    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
     		if (entityDomain == null)
     		{
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
@@ -241,23 +285,45 @@ public class TrustBundleResource extends ProtectedResource
 
     	try
     	{
-    		final Collection<TrustBundleDomainReltn> retReltns = reltnRepo.findByDomain(entityDomain).stream().
-    				map(bundleReltn -> 
-    				{ 
-    		    		if (!fetchAnchors)
-    		    			bundleReltn.getTrustBundle().setTrustBundleAnchors(new ArrayList<TrustBundleAnchor>());
+    		final Flux<TrustBundleDomainReltn> retVal = reltnRepo.findByDomainId(entityDomain.getId())
+    	    		.flatMap(bundleReltn -> 
+    	    		{
+    	    			return bundleRepo.findById(bundleReltn.getTrustBundleId())
+    	        		.flatMap(bundle -> 
+    	        		{
+    	        			
+    	        			final Flux<TrustBundleAnchor> anchorFlux = (!fetchAnchors) ? Flux.fromIterable(new ArrayList<TrustBundleAnchor>()) :
+    	        							bundleAnchorRepo.findByTrustBundleId(bundle.getId());
+
+    	        			return anchorFlux.map(anchor -> new BundleAnchorTuple(bundle, anchor))
+    	        			.switchIfEmpty(Mono.just(new BundleAnchorTuple(bundle, null)))
+    	        			.collectList();
+    	        		})
+    	        		.map(tupls ->
+    	        		{
+    	        			final List<org.nhindirect.config.store.TrustBundleAnchor> anchors = new ArrayList<>();
+    	        			
+    	        			for (BundleAnchorTuple tupl : tupls)
+    	        				if (tupl.getAnchor() != null)
+    	        					anchors.add(tupl.getAnchor());
+    	        			
+    	        			return EntityModelConversion.toModelTrustBundle(tupls.get(0).getBundle() , anchors);
+    	        		})
+    	        		.map(bundle -> new BundleReltnTuple(bundle, bundleReltn));
+    	    		})
+    	    		.map(tupl ->
+    	    		{
+    	    			final TrustBundleDomainReltn newReltn = new TrustBundleDomainReltn();
+    	    			
+    		    		newReltn.setIncoming(tupl.getReltn().isIncoming());
+    		    		newReltn.setOutgoing(tupl.getReltn().isOutgoing());	
+    		    		newReltn.setDomain(EntityModelConversion.toModelDomain(entityDomain, Collections.emptyList()));
+    		    		newReltn.setTrustBundle(tupl.getBundle());
     		    		
-    		    		final TrustBundleDomainReltn newReltn = new TrustBundleDomainReltn();
-    		    		newReltn.setIncoming(bundleReltn.isIncoming());
-    		    		newReltn.setOutgoing(bundleReltn.isOutgoing());
-    		    		newReltn.setDomain(EntityModelConversion.toModelDomain(bundleReltn.getDomain()));
-    		    		newReltn.setTrustBundle(EntityModelConversion.toModelTrustBundle(bundleReltn.getTrustBundle()));
-    		    		
-    		    		return newReltn;
-    				}).
-    				collect(Collectors.toList());
+    	    			return newReltn;
+    	    		});    				
+
     		
-    		final Flux<TrustBundleDomainReltn> retVal = Flux.fromIterable(retReltns);	
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
@@ -275,17 +341,19 @@ public class TrustBundleResource extends ProtectedResource
      * does not exist.
      */
     @GetMapping(value="{bundleName}", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional(readOnly=true)
     public ResponseEntity<Mono<TrustBundle>> getTrustBundleByName(@PathVariable("bundleName") String bundleName)
     {
     	try
     	{
-    		final org.nhindirect.config.store.TrustBundle retBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName);
+    		final org.nhindirect.config.store.TrustBundle retBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName).block();
     		
     		if (retBundle == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
 
-    		final TrustBundle modelBundle = EntityModelConversion.toModelTrustBundle(retBundle);
+			final List<TrustBundleAnchor> anchors =
+				bundleAnchorRepo.findByTrustBundleId(retBundle.getId()).collectList().block();
+    		
+    		final TrustBundle modelBundle = EntityModelConversion.toModelTrustBundle(retBundle, anchors);
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(modelBundle));  
     		
@@ -309,7 +377,7 @@ public class TrustBundleResource extends ProtectedResource
     	// make sure it doesn't exist
     	try
     	{
-    		if (bundleRepo.findByBundleNameIgnoreCase(bundle.getBundleName()) != null)
+    		if (bundleRepo.findByBundleNameIgnoreCase(bundle.getBundleName()).block() != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -320,14 +388,17 @@ public class TrustBundleResource extends ProtectedResource
     	
     	try
     	{    		
-    		final org.nhindirect.config.store.TrustBundle entityBundle = EntityModelConversion.toEntityTrustBundle(bundle);
+    		Map.Entry<org.nhindirect.config.store.TrustBundle, Collection<org.nhindirect.config.store.TrustBundleAnchor>> entry = EntityModelConversion.toEntityTrustBundle(bundle);
     		
-    		bundleRepo.save(entityBundle);
+    		org.nhindirect.config.store.TrustBundle addBundle = entry.getKey();
+    		addBundle.setId(null);
+    		
+    		bundleRepo.save(addBundle).block();
     		
     		// the trust bundle does not contain any of the anchors
     		// they must be fetched from the URL... use the
     		// refresh route to force downloading the anchors
-    		template.sendBody(entityBundle);
+    		template.sendBody(addBundle);
     	
     		final URI uri = new UriTemplate("/{bundle}").expand("trustbundle/" + bundle.getBundleName());
     		
@@ -351,7 +422,7 @@ public class TrustBundleResource extends ProtectedResource
     	// make sure it exists and refresh it
     	try
     	{
-    		final org.nhindirect.config.store.TrustBundle entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName);
+    		final org.nhindirect.config.store.TrustBundle entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName).block();
     		
     		if (entityBundle == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
@@ -380,7 +451,7 @@ public class TrustBundleResource extends ProtectedResource
     	org.nhindirect.config.store.TrustBundle entityBundle;
     	try
     	{
-    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName);
+    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName).block();
     		if (entityBundle == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -391,8 +462,10 @@ public class TrustBundleResource extends ProtectedResource
     	}
     	
     	try
-    	{
-    		bundleRepo.deleteById(entityBundle.getId());
+    	{    		
+    		bundleAnchorRepo.deleteByTrustBundleId(entityBundle.getId()).block();
+    		reltnRepo.deleteByTrustBundleId(entityBundle.getId()).block();
+    		bundleRepo.deleteById(entityBundle.getId()).block();
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -431,7 +504,7 @@ public class TrustBundleResource extends ProtectedResource
     	org.nhindirect.config.store.TrustBundle entityBundle;
     	try
     	{
-    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName);
+    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName).block();
     		if (entityBundle == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -445,7 +518,7 @@ public class TrustBundleResource extends ProtectedResource
     	try
     	{
     		entityBundle.setSigningCertificateData((signingCert == null) ? null : signingCert.getEncoded());
-    		bundleRepo.save(entityBundle);
+    		bundleRepo.save(entityBundle).block();
     		
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -472,7 +545,7 @@ public class TrustBundleResource extends ProtectedResource
     	org.nhindirect.config.store.TrustBundle entityBundle;
     	try
     	{
-    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName);
+    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName).block();
     		if (entityBundle == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -516,13 +589,13 @@ public class TrustBundleResource extends ProtectedResource
 			if (!StringUtils.isEmpty(bundleData.getBundleURL()))
 				entityBundle.setBundleURL(bundleData.getBundleURL());				
 			
-			bundleRepo.save(entityBundle);
+			bundleRepo.save(entityBundle).block();
 			
 			
 			// if the URL changed, the bundle needs to be refreshed
 			if (bundleData.getBundleURL() != null && !bundleData.getBundleURL().isEmpty() && !oldBundleURL.equals(bundleData.getBundleURL()))
 			{
-				entityBundle = bundleRepo.findById(entityBundle.getId()).get();
+				entityBundle = bundleRepo.findById(entityBundle.getId()).block();
 
 				template.sendBody(entityBundle);
 			}
@@ -553,7 +626,7 @@ public class TrustBundleResource extends ProtectedResource
     	org.nhindirect.config.store.TrustBundle entityBundle;
     	try
     	{
-    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName);
+    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName).block();
     		if (entityBundle == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -567,7 +640,7 @@ public class TrustBundleResource extends ProtectedResource
     	org.nhindirect.config.store.Domain entityDomain;
     	try
     	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
+    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
     		if (entityDomain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
@@ -584,12 +657,12 @@ public class TrustBundleResource extends ProtectedResource
     		final org.nhindirect.config.store.TrustBundleDomainReltn reltn = 
     				new org.nhindirect.config.store.TrustBundleDomainReltn();
     		
-    		reltn.setDomain(entityDomain);
-    		reltn.setTrustBundle(entityBundle);
+    		reltn.setDomainId(entityDomain.getId());
+    		reltn.setTrustBundleId(entityBundle.getId());
     		reltn.setIncoming(incoming);
     		reltn.setOutgoing(outgoing);
     		
-    		reltnRepo.save(reltn);
+    		reltnRepo.save(reltn).block();
 
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -614,7 +687,7 @@ public class TrustBundleResource extends ProtectedResource
     	org.nhindirect.config.store.TrustBundle entityBundle;
     	try
     	{
-    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName);
+    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName).block();
     		if (entityBundle == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -628,7 +701,7 @@ public class TrustBundleResource extends ProtectedResource
     	org.nhindirect.config.store.Domain entityDomain;
     	try
     	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
+    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
     		if (entityDomain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
@@ -642,7 +715,7 @@ public class TrustBundleResource extends ProtectedResource
     	// now make the disassociation
     	try
     	{
-    		reltnRepo.deleteByDomainAndTrustBundle(entityDomain, entityBundle);
+    		reltnRepo.deleteByDomainIdAndTrustBundleId(entityDomain.getId(), entityBundle.getId()).block();
 
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -666,7 +739,7 @@ public class TrustBundleResource extends ProtectedResource
     	org.nhindirect.config.store.Domain entityDomain;
     	try
     	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
+    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
     		if (entityDomain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
@@ -680,7 +753,7 @@ public class TrustBundleResource extends ProtectedResource
     	// now make the disassociation
     	try
     	{
-    		reltnRepo.deleteByDomain(entityDomain);
+    		reltnRepo.deleteByDomainId(entityDomain.getId()).block();
 
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -704,7 +777,7 @@ public class TrustBundleResource extends ProtectedResource
     	org.nhindirect.config.store.TrustBundle entityBundle;
     	try
     	{
-    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName);
+    		entityBundle = bundleRepo.findByBundleNameIgnoreCase(bundleName).block();
     		if (entityBundle == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -717,7 +790,7 @@ public class TrustBundleResource extends ProtectedResource
     	// now make the disassociation
     	try
     	{
-    		reltnRepo.deleteByTrustBundle(entityBundle);
+    		reltnRepo.deleteByTrustBundleId(entityBundle.getId()).block();
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -726,4 +799,50 @@ public class TrustBundleResource extends ProtectedResource
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}  
     }  
+    
+    static class BundleAnchorTuple
+    {
+    	final org.nhindirect.config.store.TrustBundle bundle;
+    	final org.nhindirect.config.store.TrustBundleAnchor anchor;
+
+		public BundleAnchorTuple(org.nhindirect.config.store.TrustBundle bundle, org.nhindirect.config.store.TrustBundleAnchor anchor)
+    	{
+    		this.bundle = bundle;
+    		this.anchor = anchor;
+    	}
+
+		public org.nhindirect.config.store.TrustBundle getBundle()
+		{
+			return bundle;
+		}
+
+		public org.nhindirect.config.store.TrustBundleAnchor getAnchor()
+		{
+			return anchor;
+		}
+    	
+    }   
+    
+    static class BundleReltnTuple
+    {
+    	final TrustBundle bundle;
+    	final org.nhindirect.config.store.TrustBundleDomainReltn reltn;
+
+		public BundleReltnTuple(TrustBundle bundle, org.nhindirect.config.store.TrustBundleDomainReltn reltn)
+    	{
+    		this.bundle = bundle;
+    		this.reltn = reltn;
+    	}
+
+		public TrustBundle getBundle()
+		{
+			return bundle;
+		}
+
+		public org.nhindirect.config.store.TrustBundleDomainReltn getReltn()
+		{
+			return reltn;
+		}
+    	
+    }      
 }

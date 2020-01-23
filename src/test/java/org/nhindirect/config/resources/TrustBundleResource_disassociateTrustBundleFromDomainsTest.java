@@ -2,7 +2,7 @@ package org.nhindirect.config.resources;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -26,6 +26,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+
+import reactor.core.publisher.Mono;
 
 public class TrustBundleResource_disassociateTrustBundleFromDomainsTest extends SpringBaseTest
 {
@@ -163,7 +165,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainsTest extends 
 				protected void doAssertions() throws Exception
 				{
 					final Collection<org.nhindirect.config.store.TrustBundleDomainReltn> bundleRelts =  
-							bundleDomainRepo.findByDomain(domainRepo.findByDomainNameIgnoreCase(getDomainNameToAssociate()));
+							bundleDomainRepo.findByDomainId(domainRepo.findByDomainNameIgnoreCase(getDomainNameToAssociate()).block().getId()).collectList().block();
 					
 					assertTrue(bundleRelts.isEmpty());
 					
@@ -285,8 +287,8 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainsTest extends 
 						TrustBundleRepository mockBundleDAO = mock(TrustBundleRepository.class);
 						TrustBundleDomainReltnRepository mockReltnDAO = mock(TrustBundleDomainReltnRepository.class);
 						
-						when(mockBundleDAO.findByBundleNameIgnoreCase(getBundleNameToDisassociate())).thenReturn(new org.nhindirect.config.store.TrustBundle());
-						doThrow(new RuntimeException()).when(mockReltnDAO).deleteByTrustBundle((org.nhindirect.config.store.TrustBundle)any());
+						when(mockBundleDAO.findByBundleNameIgnoreCase(getBundleNameToDisassociate())).thenReturn(Mono.just(new org.nhindirect.config.store.TrustBundle()));
+						doThrow(new RuntimeException()).when(mockReltnDAO).deleteByTrustBundleId(any());
 						
 						bundleService.setTrustBundleRepository(mockBundleDAO);
 						bundleService.setTrustBundleDomainReltnRepository(mockReltnDAO);

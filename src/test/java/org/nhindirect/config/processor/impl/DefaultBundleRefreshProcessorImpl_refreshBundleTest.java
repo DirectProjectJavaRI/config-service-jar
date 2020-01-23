@@ -3,31 +3,42 @@ package org.nhindirect.config.processor.impl;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 
 import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Matchers.any;
 
 
 import org.apache.commons.io.FileUtils;
 import org.junit.Before;
 import org.junit.Test;
+import org.nhindirect.config.repository.TrustBundleAnchorRepository;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.nhindirect.config.store.BundleThumbprint;
 import org.nhindirect.config.store.ConfigurationStoreException;
 import org.nhindirect.config.store.TrustBundle;
 
+import reactor.core.publisher.Mono;
+
 
 public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 {
 	protected TrustBundleRepository repo;
+	protected TrustBundleAnchorRepository anchorRepo;
+	
 	protected String filePrefix;
 	
+	@SuppressWarnings("unchecked")
 	@Before
 	public void setUp()
 	{
 		repo = mock(TrustBundleRepository.class);
+		anchorRepo = mock(TrustBundleAnchorRepository.class);
+		
+		when(repo.save(any())).thenReturn(mock(Mono.class));
 		
 		// check for Windows... it doens't like file://<drive>... turns it into FTP
 		File file = new File("./src/test/resources/bundles/signedbundle.p7b");
@@ -41,7 +52,7 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 	public void testRefreshBundle_validBundle_noCheckSum_needsRefreshed_assertUpdateCalled() throws Exception
 	{
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setRepository(repo);
+		processor.setRepositories(repo, anchorRepo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
@@ -57,7 +68,7 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 	public void testRefreshBundle_validBundle_unmatchedChecksum_needsRefreshed_assertUpdateCalled() throws Exception
 	{
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setRepository(repo);
+		processor.setRepositories(repo, anchorRepo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
@@ -74,7 +85,7 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 	public void testRefreshBundle_checkSumsMatch_assertUpdateNotCalled() throws Exception
 	{
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setRepository(repo);
+		processor.setRepositories(repo, anchorRepo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		
@@ -95,7 +106,7 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 	public void testRefreshBundle_bundleNotFound_assertUpdateNotCalled() throws Exception
 	{
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setRepository(repo);
+		processor.setRepositories(repo, anchorRepo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
@@ -111,7 +122,7 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 	public void testRefreshBundle_invalidBundle_assertUpdateNotCalled() throws Exception
 	{
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setRepository(repo);
+		processor.setRepositories(repo, anchorRepo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
@@ -128,7 +139,7 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 	{
 		
 		DefaultBundleRefreshProcessorImpl processor = new DefaultBundleRefreshProcessorImpl();
-		processor.setRepository(repo);
+		processor.setRepositories(repo, anchorRepo);
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");

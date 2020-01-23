@@ -96,7 +96,7 @@ public class SettingResource_addSettingTest extends SpringBaseTest
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					Collection<org.nhindirect.config.store.Setting> retrievedSettings = settingRepo.findAll();
+					Collection<org.nhindirect.config.store.Setting> retrievedSettings = settingRepo.findAll().collectList().block();
 					
 					assertNotNull(retrievedSettings);
 					assertEquals(this.settings.size(), retrievedSettings.size());

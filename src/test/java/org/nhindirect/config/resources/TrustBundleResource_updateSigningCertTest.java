@@ -7,7 +7,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -26,6 +26,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+
+import reactor.core.publisher.Mono;
 
 public class TrustBundleResource_updateSigningCertTest extends SpringBaseTest
 {
@@ -369,8 +371,8 @@ public class TrustBundleResource_updateSigningCertTest extends SpringBaseTest
 						super.setupMocks();
 
 						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
-						when(mockDAO.findByBundleNameIgnoreCase("testBundle1")).thenReturn(new org.nhindirect.config.store.TrustBundle());
-						doThrow(new RuntimeException()).when(mockDAO).save((org.nhindirect.config.store.TrustBundle)any());
+						when(mockDAO.findByBundleNameIgnoreCase("testBundle1")).thenReturn(Mono.just(new org.nhindirect.config.store.TrustBundle()));
+						doThrow(new RuntimeException()).when(mockDAO).save(any());
 						
 						bundleService.setTrustBundleRepository(mockDAO);
 					}

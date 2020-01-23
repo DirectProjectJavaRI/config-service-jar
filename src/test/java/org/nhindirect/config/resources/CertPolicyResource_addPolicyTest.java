@@ -104,7 +104,7 @@ public class CertPolicyResource_addPolicyTest extends SpringBaseTest
 				
 				protected void doAssertions() throws Exception
 				{
-					final Collection<org.nhindirect.config.store.CertPolicy> policies = policyRepo.findAll();
+					final Collection<org.nhindirect.config.store.CertPolicy> policies = policyRepo.findAll().collectList().block();
 					
 					assertNotNull(policies);
 					assertEquals(2, policies.size());
@@ -116,7 +116,7 @@ public class CertPolicyResource_addPolicyTest extends SpringBaseTest
 						final CertPolicy addedPolicy = addedPoliciesIter.next(); 
 						assertEquals(addedPolicy.getPolicyName(), retrievedPolicy.getPolicyName());
 						assertTrue(Arrays.equals(addedPolicy.getPolicyData(), retrievedPolicy.getPolicyData()));
-						assertEquals(addedPolicy.getLexicon(), retrievedPolicy.getLexicon());
+						assertEquals(addedPolicy.getLexicon().ordinal(), retrievedPolicy.getLexicon());
 					}
 					
 				}

@@ -5,10 +5,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
@@ -27,6 +28,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+
+import reactor.core.publisher.Mono;
 
 public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringBaseTest
 {
@@ -155,16 +158,19 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					final org.nhindirect.config.store.Domain domain = domainRepo.findByDomainNameIgnoreCase(getDomainNameToAssociate());
+					final org.nhindirect.config.store.Domain domain = domainRepo.findByDomainNameIgnoreCase(getDomainNameToAssociate()).block();
 					
-					final Collection<org.nhindirect.config.store.CertPolicyGroupDomainReltn> reltns = groupReltnRepo.findByDomain(domain);
+					final List<org.nhindirect.config.store.CertPolicyGroupDomainReltn> reltns = groupDomainReltnRepo.findByDomainId(domain.getId()).collectList().block();
 					
 					assertEquals(1, reltns.size());
 					
-					final org.nhindirect.config.store.CertPolicyGroupDomainReltn reltn = reltns.iterator().next();
+					final org.nhindirect.config.store.CertPolicyGroupDomainReltn reltn = reltns.get(0);
 					
-					assertEquals(getGroupNameToAssociate(), reltn.getCertPolicyGroup().getPolicyGroupName());
-					assertEquals(getDomainNameToAssociate(), reltn.getDomain().getDomainName());
+					final org.nhindirect.config.store.CertPolicyGroup group  = policyGroupRepo.findByPolicyGroupNameIgnoreCase(getGroupNameToAssociate()).block();
+					
+					
+					assertEquals(group.getId(), reltn.getCertPolicyGroupId());
+					assertEquals(domain.getId(), reltn.getDomainId());
 				}
 			}.perform();
 		}	
@@ -384,7 +390,7 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 						CertPolicyGroupRepository mockPolicyDAO = mock(CertPolicyGroupRepository.class);
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						
-						when(mockPolicyDAO.findByPolicyGroupNameIgnoreCase("Group1")).thenReturn(new org.nhindirect.config.store.CertPolicyGroup());
+						when(mockPolicyDAO.findByPolicyGroupNameIgnoreCase("Group1")).thenReturn(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()));
 						doThrow(new RuntimeException()).when(mockDomainDAO).findByDomainNameIgnoreCase((String)any());
 						
 						certService.setCertPolicyGroupRepository(mockPolicyDAO);
@@ -456,8 +462,8 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						CertPolicyGroupDomainReltnRepository mockReltn = mock(CertPolicyGroupDomainReltnRepository.class);
 						
-						when(mockPolicyDAO.findByPolicyGroupNameIgnoreCase("Group1")).thenReturn(new org.nhindirect.config.store.CertPolicyGroup());
-						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(new org.nhindirect.config.store.Domain());
+						when(mockPolicyDAO.findByPolicyGroupNameIgnoreCase("Group1")).thenReturn(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()));
+						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(Mono.just(new org.nhindirect.config.store.Domain()));
 						doThrow(new RuntimeException()).when(mockReltn).save((org.nhindirect.config.store.CertPolicyGroupDomainReltn)any());
 						
 						certService.setCertPolicyGroupRepository(mockPolicyDAO);
@@ -476,7 +482,7 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 					
 					certService.setCertPolicyGroupRepository(policyGroupRepo);
 					certService.setDomainRepository(domainRepo);
-					certService.setCertPolicyGroupDomainReltnRepository(groupReltnRepo);
+					certService.setCertPolicyGroupDomainReltnRepository(groupDomainReltnRepo);
 				}
 				
 				@Override

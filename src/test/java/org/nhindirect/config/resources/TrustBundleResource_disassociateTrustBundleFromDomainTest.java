@@ -2,7 +2,7 @@ package org.nhindirect.config.resources;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -27,6 +27,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 
+import reactor.core.publisher.Mono;
 
 public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends SpringBaseTest
 {
@@ -51,7 +52,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 					bundles = new ArrayList<TrustBundle>();
 					
 					TrustBundle bundle = new TrustBundle();
-					bundle.setBundleName("testBundle1");
+					bundle.setBundleName("testBundle999");
 					File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
 					bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
 					bundle.setRefreshInterval(24);
@@ -74,7 +75,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				
 				Domain domain = new Domain();
 				
-				domain.setDomainName("test.com");
+				domain.setDomainName("testreltn.com");
 				domain.setStatus(EntityStatus.ENABLED);
 				domain.setPostmasterAddress(postmasterAddress);			
 				
@@ -83,12 +84,12 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 			
 			protected String getBundleNameToAssociate()
 			{
-				return "testBundle1";
+				return "testBundle999";
 			}
 			
 			protected String getDomainNameToAssociate()
 			{
-				return "test.com";
+				return "testreltn.com";
 			}
 			
 			protected abstract String getBundleNameToDisassociate();
@@ -97,7 +98,9 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
+			{		
+				setUp();
+				
 				
 				final Collection<TrustBundle> bundlesToAdd = getBundlesToAdd();
 				
@@ -120,6 +123,15 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
 					if (resp.getStatusCodeValue() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
+				}
+				
+				// make sure eveything is empty first
+				if (addDomain != null)
+				{
+					final Collection<org.nhindirect.config.store.TrustBundleDomainReltn> bundleRelts =  
+						bundleDomainRepo.findByDomainId(domainRepo.findByDomainNameIgnoreCase(getDomainNameToAssociate()).block().getId()).collectList().block();
+				
+					assertTrue(bundleRelts.isEmpty());
 				}
 				
 				// associate the bundle and domain
@@ -154,24 +166,24 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 		public void testDisassociateBundleFromDomain_disassociateExistingDomainAndBundle_assertBundlesDisassociated()  throws Exception
 		{
 			new TestPlan()
-			{
+			{			
 				
 				@Override
 				protected String getBundleNameToDisassociate()
 				{
-					return "testBundle1";
+					return "testBundle999";
 				}
 				
 				@Override
 				protected String getDomainNameToDisassociate()
 				{
-					return "test.com";
+					return "testreltn.com";
 				}
 				
 				protected void doAssertions() throws Exception
 				{
 					final Collection<org.nhindirect.config.store.TrustBundleDomainReltn> bundleRelts =  
-							bundleDomainRepo.findByDomain(domainRepo.findByDomainNameIgnoreCase(getDomainNameToAssociate()));
+							bundleDomainRepo.findByDomainId(domainRepo.findByDomainNameIgnoreCase(getDomainNameToAssociate()).block().getId()).collectList().block();
 					
 					assertTrue(bundleRelts.isEmpty());
 					
@@ -184,6 +196,14 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 		{
 			new TestPlan()
 			{
+			
+				@Override
+				protected void performInner() throws Exception
+				{
+					Thread.sleep(2000);
+					
+					super.performInner();
+				}
 				
 				@Override
 				protected String getBundleNameToDisassociate()
@@ -194,7 +214,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				@Override
 				protected String getDomainNameToDisassociate()
 				{
-					return "test.com";
+					return "testreltn.com";
 				}
 				
 				@Override
@@ -217,7 +237,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				@Override
 				protected String getBundleNameToDisassociate()
 				{
-					return "testBundle1";
+					return "testBundle999";
 				}
 				
 				@Override
@@ -285,13 +305,13 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				@Override
 				protected String getBundleNameToDisassociate()
 				{
-					return "testBundle1";
+					return "testBundle999";
 				}
 				
 				@Override
 				protected String getDomainNameToDisassociate()
 				{
-					return "test.com";
+					return "testreltn.com";
 				}
 				
 				@Override
@@ -330,7 +350,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 						TrustBundleRepository mockBundleDAO = mock(TrustBundleRepository.class);
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						
-						when(mockBundleDAO.findByBundleNameIgnoreCase("testBundle1")).thenReturn(new org.nhindirect.config.store.TrustBundle());
+						when(mockBundleDAO.findByBundleNameIgnoreCase("testBundle1")).thenReturn(Mono.just(new org.nhindirect.config.store.TrustBundle()));
 						doThrow(new RuntimeException()).when(mockDomainDAO).findByDomainNameIgnoreCase((String)any());
 						
 						bundleService.setTrustBundleRepository(mockBundleDAO);
@@ -354,13 +374,13 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				@Override
 				protected String getBundleNameToDisassociate()
 				{
-					return "testBundle1";
+					return "testBundle999";
 				}
 				
 				@Override
 				protected String getDomainNameToDisassociate()
 				{
-					return "test.com";
+					return "testreltn.com";
 				}
 				
 				@Override
@@ -400,10 +420,10 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						TrustBundleDomainReltnRepository reltnDAO = mock(TrustBundleDomainReltnRepository.class);
 						
-						when(mockBundleDAO.findByBundleNameIgnoreCase("testBundle1")).thenReturn(new org.nhindirect.config.store.TrustBundle());
-						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(new org.nhindirect.config.store.Domain());
-						doThrow(new RuntimeException()).when(reltnDAO).deleteByDomainAndTrustBundle((org.nhindirect.config.store.Domain)any(), 
-								(org.nhindirect.config.store.TrustBundle)any());
+						when(mockBundleDAO.findByBundleNameIgnoreCase("testBundle1")).thenReturn(Mono.just(new org.nhindirect.config.store.TrustBundle()));
+						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(Mono.just(new org.nhindirect.config.store.Domain()));
+						doThrow(new RuntimeException()).when(reltnDAO).deleteByDomainIdAndTrustBundleId(any(), 
+								any());
 						
 						
 						bundleService.setTrustBundleRepository(mockBundleDAO);
@@ -429,13 +449,13 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				@Override
 				protected String getBundleNameToDisassociate()
 				{
-					return "testBundle1";
+					return "testBundle999";
 				}
 				
 				@Override
 				protected String getDomainNameToDisassociate()
 				{
-					return "test.com";
+					return "testreltn.com";
 				}
 				
 				@Override

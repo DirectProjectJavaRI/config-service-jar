@@ -123,7 +123,7 @@ public class AnchorResource_removeAnchorsByOwner extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
+				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll().collectList().block();
 				assertTrue(anchors.isEmpty());
 			}
 		}.perform();
@@ -179,7 +179,7 @@ public class AnchorResource_removeAnchorsByOwner extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
+				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll().collectList().block();
 				assertEquals(1, anchors.size());
 			}
 		}.perform();
