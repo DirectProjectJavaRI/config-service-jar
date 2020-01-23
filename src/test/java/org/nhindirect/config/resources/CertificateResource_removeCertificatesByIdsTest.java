@@ -19,7 +19,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.repository.CertificateRepository;
-import org.nhindirect.config.store.Certificate;
+import org.nhindirect.config.model.Certificate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -124,7 +124,7 @@ public class CertificateResource_removeCertificatesByIdsTest extends SpringBaseT
 				@Override
 				protected Collection<Long> getIdsToRemove()
 				{
-					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll();
+					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll().collectList().block();
 					
 					final Collection<Long> ids = new ArrayList<Long>();
 					for (org.nhindirect.config.store.Certificate cert : certs)
@@ -136,7 +136,7 @@ public class CertificateResource_removeCertificatesByIdsTest extends SpringBaseT
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll();
+					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll().collectList().block();
 					assertTrue(certs.isEmpty());
 				}
 			}.perform();
@@ -177,7 +177,7 @@ public class CertificateResource_removeCertificatesByIdsTest extends SpringBaseT
 				@Override
 				protected Collection<Long> getIdsToRemove()
 				{
-					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll();
+					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll().collectList().block();
 					
 					final Collection<Long> ids = new ArrayList<Long>();
 
@@ -189,7 +189,7 @@ public class CertificateResource_removeCertificatesByIdsTest extends SpringBaseT
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll();
+					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll().collectList().block();
 					assertEquals(1, certs.size());
 				}
 			}.perform();
@@ -228,7 +228,7 @@ public class CertificateResource_removeCertificatesByIdsTest extends SpringBaseT
 				@Override
 				protected Collection<Long> getIdsToRemove()
 				{
-					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll();
+					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll().collectList().block();
 					
 					final Collection<Long> ids = new ArrayList<Long>();
 
@@ -240,7 +240,7 @@ public class CertificateResource_removeCertificatesByIdsTest extends SpringBaseT
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll();
+					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll().collectList().block();
 					assertEquals(0, certs.size());
 				}
 			}.perform();

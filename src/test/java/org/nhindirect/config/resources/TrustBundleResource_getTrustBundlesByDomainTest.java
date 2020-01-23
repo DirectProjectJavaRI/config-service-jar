@@ -5,7 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -32,6 +32,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+
+import reactor.core.publisher.Mono;
 
 
 public class TrustBundleResource_getTrustBundlesByDomainTest extends SpringBaseTest
@@ -504,8 +506,8 @@ public class TrustBundleResource_getTrustBundlesByDomainTest extends SpringBaseT
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						TrustBundleDomainReltnRepository mockReltnDAO = mock(TrustBundleDomainReltnRepository.class);
 						
-						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(new org.nhindirect.config.store.Domain());
-						doThrow(new RuntimeException()).when(mockReltnDAO).findByDomain((org.nhindirect.config.store.Domain)any());
+						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(Mono.just(new org.nhindirect.config.store.Domain()));
+						doThrow(new RuntimeException()).when(mockReltnDAO).findByDomainId(any());
 						
 						bundleService.setTrustBundleDomainReltnRepository(mockReltnDAO);
 						bundleService.setDomainRepository(mockDomainDAO);

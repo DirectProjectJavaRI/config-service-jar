@@ -23,26 +23,19 @@ package org.nhindirect.config.resources;
 
 import java.net.URI;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import javax.persistence.EntityManager;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.hibernate.Criteria;
-import org.hibernate.ScrollMode;
-import org.hibernate.ScrollableResults;
-import org.hibernate.Session;
-import org.hibernate.StatelessSession;
-import org.hibernate.criterion.CriteriaSpecification;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
 import org.nhindirect.config.model.CertPolicyGroupDomainReltn;
 import org.nhindirect.config.model.CertPolicyGroupUse;
 import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
+import org.nhindirect.config.repository.CertPolicyGroupReltnRepository;
 import org.nhindirect.config.repository.CertPolicyGroupRepository;
 import org.nhindirect.config.repository.CertPolicyRepository;
 import org.nhindirect.config.repository.DomainRepository;
@@ -52,7 +45,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -63,6 +55,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
 
+import com.google.common.collect.Maps;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -84,14 +77,13 @@ public class CertPolicyResource extends ProtectedResource
   
     protected CertPolicyGroupRepository groupRepo;
     
-    protected CertPolicyGroupDomainReltnRepository reltnRepo;
+    protected CertPolicyGroupDomainReltnRepository domainReltnRepo;
+    
+    protected CertPolicyGroupReltnRepository polGroupReltnRepo;
     
     protected DomainRepository domainRepo;
     
     protected CertPolicyResource transactionalThisProxy;
-    
-    @Autowired
-    protected EntityManager entityManager;
     
     /**
      * Constructor
@@ -133,13 +125,23 @@ public class CertPolicyResource extends ProtectedResource
     }
     
     /**
-     * Sets the policy group reltn repository.  Auto populated by Spring
+     * Sets the policy group to domain reltn repository.  Auto populated by Spring
      * @param reltnRepo CertPolicyGroupDomainReltn repository
      */
     @Autowired
-    public void setCertPolicyGroupDomainReltnRepository(CertPolicyGroupDomainReltnRepository reltnRepo) 
+    public void setCertPolicyGroupDomainReltnRepository(CertPolicyGroupDomainReltnRepository domainReltnRepo) 
     {
-        this.reltnRepo = reltnRepo;
+        this.domainReltnRepo = domainReltnRepo;
+    }
+    
+    /**
+     * Sets the policy group tp policy use reltn repository.  Auto populated by Spring
+     * @param reltnRepo CertPolicyGroupDomainReltn repository
+     */
+    @Autowired
+    public void setCertPolicyGroupReltnRepository(CertPolicyGroupReltnRepository polGroupReltnRepo) 
+    {
+        this.polGroupReltnRepo = polGroupReltnRepo;
     }
     
     @Autowired 
@@ -158,10 +160,10 @@ public class CertPolicyResource extends ProtectedResource
     {
     	try
     	{
-    		final Flux<CertPolicy> retVal = Flux.fromStream(policyRepo.findAll().stream().
-    				map(pol -> {
+    		final Flux<CertPolicy> retVal = policyRepo.findAll()
+    				.map(pol -> {
     					return EntityModelConversion.toModelCertPolicy(pol);				
-    				}));
+    				});
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     		
@@ -183,7 +185,7 @@ public class CertPolicyResource extends ProtectedResource
     {
     	try
     	{
-    		final org.nhindirect.config.store.CertPolicy retPolicy = policyRepo.findByPolicyNameIgnoreCase(policyName);
+    		final org.nhindirect.config.store.CertPolicy retPolicy = policyRepo.findByPolicyNameIgnoreCase(policyName).block();
     		
     		if (retPolicy == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
@@ -212,7 +214,7 @@ public class CertPolicyResource extends ProtectedResource
     	// make sure it doesn't exist
     	try
     	{
-    		if (policyRepo.findByPolicyNameIgnoreCase(policy.getPolicyName()) != null)
+    		if (policyRepo.findByPolicyNameIgnoreCase(policy.getPolicyName()).block() != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -225,7 +227,7 @@ public class CertPolicyResource extends ProtectedResource
     	{    		
     		final org.nhindirect.config.store.CertPolicy entityPolicy = EntityModelConversion.toEntityCertPolicy(policy);
     		
-    		policyRepo.save(entityPolicy);
+    		policyRepo.save(entityPolicy).block();
  
     		final URI uri = new UriTemplate("/{certpolicy}").expand("certpolicy/" + policy.getPolicyName());
     		
@@ -250,7 +252,7 @@ public class CertPolicyResource extends ProtectedResource
     	org.nhindirect.config.store.CertPolicy enitityPolicy = null;
     	try
     	{
-    		enitityPolicy = policyRepo.findByPolicyNameIgnoreCase(policyName); 
+    		enitityPolicy = policyRepo.findByPolicyNameIgnoreCase(policyName).block();
     		if (enitityPolicy == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -264,41 +266,11 @@ public class CertPolicyResource extends ProtectedResource
     	 * Need to remove this policy from any possible group that it belongs to.
     	 * 
     	 */
+    	polGroupReltnRepo.deleteByPolicyId(enitityPolicy.getId()).block();
     	
-    	Map<CertPolicyGroupUse, String> usesToRemove = new HashMap<>();
-		try (final StatelessSession session = ((Session) entityManager.getDelegate()).getSessionFactory().openStatelessSession()) 
-		{
-			@SuppressWarnings("deprecation")
-			final Criteria criteria = session.createCriteria(CertPolicyGroupReltn.class).setCacheable(false).setFetchSize(1000)
-					.setResultTransformer(CriteriaSpecification.DISTINCT_ROOT_ENTITY);
-			
-			final ScrollableResults results = criteria.scroll(ScrollMode.FORWARD_ONLY);
-			
-			while (results.next())
-			{
-				final CertPolicyGroupReltn reltn = (CertPolicyGroupReltn)results.get(0);
-				if (reltn.getCertPolicy().getPolicyName().equals(policyName))
-				{
-	    			final CertPolicyGroupUse use = new CertPolicyGroupUse();
-	    			
-	    			use.setPolicy(EntityModelConversion.toModelCertPolicy(reltn.getCertPolicy()));
-	    			if (reltn.getPolicyUse() != null)
-	    				use.setPolicyUse(org.nhindirect.config.model.CertPolicyUse.valueOf(reltn.getPolicyUse().toString()));
-	    			use.setIncoming(reltn.isIncoming());
-	    			use.setOutgoing(reltn.isOutgoing());
-
-					
-					usesToRemove.put(use, reltn.getCertPolicyGroup().getPolicyGroupName());
-				}
-			}
-		}
-    	
-		usesToRemove.forEach((use, groupName) -> transactionalThisProxy.removedPolicyUseFromGroup(groupName, use));
-
-	
     	try
     	{
-    		policyRepo.deleteById(enitityPolicy.getId());
+    		policyRepo.deleteById(enitityPolicy.getId()).block();
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -322,7 +294,7 @@ public class CertPolicyResource extends ProtectedResource
     	org.nhindirect.config.store.CertPolicy entityPolicy;
     	try
     	{
-    		entityPolicy = policyRepo.findByPolicyNameIgnoreCase(policyName);
+    		entityPolicy = policyRepo.findByPolicyNameIgnoreCase(policyName).block();
     		if (entityPolicy == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -342,9 +314,9 @@ public class CertPolicyResource extends ProtectedResource
 				entityPolicy.setPolicyName(policyData.getPolicyName());
 			
 			if (policyData.getLexicon() != null)
-				entityPolicy.setLexicon(policyData.getLexicon());
+				entityPolicy.setLexicon(policyData.getLexicon().ordinal());
     		
-			policyRepo.save(entityPolicy);
+			policyRepo.save(entityPolicy).block();
 
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -361,18 +333,30 @@ public class CertPolicyResource extends ProtectedResource
      * groups exist.
      */
     @GetMapping(value="groups", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional(readOnly=true)
     public ResponseEntity<Flux<CertPolicyGroup>> getPolicyGroups()
     {    	
     	try
     	{
-    		final Collection<CertPolicyGroup> retGroups = groupRepo.findAll().stream().
-    		   map(group -> {
-    			   return EntityModelConversion.toModelCertPolicyGroup(group);
-    		   }).
-    		   collect(Collectors.toList());
-    		   
-    		final Flux<CertPolicyGroup> retVal = Flux.fromIterable(retGroups);
+    		final Flux<CertPolicyGroup> retVal = groupRepo.findAll()
+    		.flatMap(group -> 
+    		{
+    			
+    		    
+    			return polGroupReltnRepo.findByGroupId(group.getId())
+    				    .flatMap(reltn ->  
+    				    {
+    				       return policyRepo.findById(reltn.getCertPolicyId())
+    				       .map(pol -> Maps.immutableEntry(reltn, pol));
+    				    
+    				    })
+    				    .collect(Collectors.toMap(
+    							Map.Entry::getKey,
+    							Map.Entry::getValue))
+    				    .map(polUseMap -> 
+    				    {
+    				    	return EntityModelConversion.toModelCertPolicyGroup(group, polUseMap);
+    				    });
+    		});
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
@@ -390,17 +374,30 @@ public class CertPolicyResource extends ProtectedResource
      * not exist.
      */
     @GetMapping(value="groups/{groupName}", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional(readOnly=true)
     public ResponseEntity<Mono<CertPolicyGroup>> getPolicyGroupByName(@PathVariable("groupName") String groupName)
     {
     	try
     	{
-    		final org.nhindirect.config.store.CertPolicyGroup retGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName);
+    		final org.nhindirect.config.store.CertPolicyGroup retGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
     		
     		if (retGroup == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
 
-    		final CertPolicyGroup modelGroup = EntityModelConversion.toModelCertPolicyGroup(retGroup);
+		    Map<CertPolicyGroupReltn, org.nhindirect.config.store.CertPolicy> polUseMap =  
+		    polGroupReltnRepo.findByGroupId(retGroup.getId())
+		    .flatMap(reltn ->  
+		    {
+		       return policyRepo.findById(reltn.getCertPolicyId())
+		       .map(pol -> Maps.immutableEntry(reltn, pol));
+		    
+		    })
+		    .collect(Collectors.toMap(
+					Map.Entry::getKey,
+					Map.Entry::getValue)).block();
+		   
+
+    		
+		    final CertPolicyGroup modelGroup = EntityModelConversion.toModelCertPolicyGroup(retGroup, polUseMap);
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(modelGroup));    
     		
@@ -425,7 +422,7 @@ public class CertPolicyResource extends ProtectedResource
     	// make sure it doesn't exist
     	try
     	{
-    		if (groupRepo.findByPolicyGroupNameIgnoreCase(group.getPolicyGroupName()) != null)
+    		if (groupRepo.findByPolicyGroupNameIgnoreCase(group.getPolicyGroupName()).block() != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();	
     	}
     	catch (Exception e)
@@ -438,7 +435,7 @@ public class CertPolicyResource extends ProtectedResource
     	{    		
     		final org.nhindirect.config.store.CertPolicyGroup entityGroup = EntityModelConversion.toEntityCertPolicyGroup(group);
     		
-    		groupRepo.save(entityGroup);
+    		groupRepo.save(entityGroup).block();
     		
     		final URI uri = new UriTemplate("/{certpolicy}").expand("certpolicy/group+/" + group.getPolicyGroupName());
     		
@@ -465,7 +462,7 @@ public class CertPolicyResource extends ProtectedResource
     	org.nhindirect.config.store.CertPolicyGroup enitityGroup = null;
     	try
     	{
-    		enitityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName); 
+    		enitityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
     		if (enitityGroup == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -477,6 +474,10 @@ public class CertPolicyResource extends ProtectedResource
     	
     	try
     	{
+    		domainReltnRepo.deleteByCertPolicyGroupId(enitityGroup.getId());
+    		
+    		polGroupReltnRepo.deleteByGroupId(enitityGroup.getId());
+    		
     		groupRepo.deleteById(enitityGroup.getId());
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
@@ -502,7 +503,7 @@ public class CertPolicyResource extends ProtectedResource
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
     	try
     	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName);
+    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
     		if (entityGroup == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();	
     	}
@@ -518,7 +519,7 @@ public class CertPolicyResource extends ProtectedResource
     		if (!StringUtils.isEmpty(newGroupName))
     			entityGroup.setPolicyGroupName(newGroupName);
     			
-    		groupRepo.save(entityGroup);
+    		groupRepo.save(entityGroup).block();
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -536,14 +537,13 @@ public class CertPolicyResource extends ProtectedResource
      * policy or policy group does not exist.
      */ 
     @PostMapping(value="groups/uses/{group}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional
     public ResponseEntity<Mono<Void>> addPolicyUseToGroup(@PathVariable("group") String groupName, @RequestBody CertPolicyGroupUse use)
     {
     	// make sure the group exists
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
     	try
     	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName);
+    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
     		if (entityGroup == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();	
     	}
@@ -557,7 +557,7 @@ public class CertPolicyResource extends ProtectedResource
     	org.nhindirect.config.store.CertPolicy entityPolicy;
     	try
     	{
-    		entityPolicy = policyRepo.findByPolicyNameIgnoreCase(use.getPolicy().getPolicyName());
+    		entityPolicy = policyRepo.findByPolicyNameIgnoreCase(use.getPolicy().getPolicyName()).block();
     		if (entityPolicy == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -571,20 +571,13 @@ public class CertPolicyResource extends ProtectedResource
     	try
     	{
 			final CertPolicyGroupReltn reltn = new CertPolicyGroupReltn();
-			reltn.setCertPolicy(entityPolicy);
-			reltn.setCertPolicyGroup(entityGroup);
-			reltn.setPolicyUse(org.nhindirect.config.store.CertPolicyUse.valueOf(use.getPolicyUse().toString()));
+			reltn.setCertPolicyId(entityPolicy.getId());
+			reltn.setCertPolicyGroupId(entityGroup.getId());
+			reltn.setPolicyUse(org.nhindirect.config.store.CertPolicyUse.valueOf(use.getPolicyUse().toString()).ordinal());
 			reltn.setIncoming(use.isIncoming());
 			reltn.setOutgoing(use.isOutgoing());
-    		
-			// set policy groups reltn
-			entityGroup.getCertPolicyGroupReltn().add(reltn);
-			//final List<CertPolicyGroupReltn> reltns = new ArrayList<>(entityGroup.getCertPolicyGroupReltn());
-			//reltns.add(reltn);
-			
-			//entityGroup.setCertPolicyGroupReltn(reltns);
-			
-			groupRepo.save(entityGroup);
+
+			polGroupReltnRepo.save(reltn).block();
 			
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -603,14 +596,13 @@ public class CertPolicyResource extends ProtectedResource
      * or existing relationship is not found.
      */
     @PostMapping(value="groups/uses/{group}/removePolicy", consumes = MediaType.APPLICATION_JSON_VALUE)    
-    @Transactional
     public ResponseEntity<Mono<Void>> removedPolicyUseFromGroup(@PathVariable("group") String groupName, @RequestBody CertPolicyGroupUse use)
     {
     	// make sure the group exists
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
     	try
     	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName);
+    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
     		if (entityGroup == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -624,14 +616,18 @@ public class CertPolicyResource extends ProtectedResource
     	
     	org.nhindirect.config.store.CertPolicyGroupReltn foundReltn = null;
     	
-		if (entityGroup.getCertPolicyGroupReltn() != null)
+    	final Collection<org.nhindirect.config.store.CertPolicyGroupReltn> reltns = polGroupReltnRepo.findByGroupId(entityGroup.getId()).collectList().block();  
+    	
+		if (reltns != null)
 		{
 			
-			for (org.nhindirect.config.store.CertPolicyGroupReltn groupReltn : entityGroup.getCertPolicyGroupReltn())
+			for (org.nhindirect.config.store.CertPolicyGroupReltn groupReltn : reltns)
 			{
-				if (groupReltn.getCertPolicy().getPolicyName().equals(use.getPolicy().getPolicyName()) &&
+				final org.nhindirect.config.store.CertPolicy certPol = policyRepo.findById(groupReltn.getCertPolicyId()).block();
+				
+				if (certPol.getPolicyName().equals(use.getPolicy().getPolicyName()) &&
 						groupReltn.isIncoming() == use.isIncoming() && groupReltn.isOutgoing() == use.isOutgoing() &&
-						groupReltn.getPolicyUse() == entityUse)
+						groupReltn.getPolicyUse() == entityUse.ordinal())
 				{
 					foundReltn = groupReltn;
 					break;
@@ -641,11 +637,9 @@ public class CertPolicyResource extends ProtectedResource
 		
 		if (foundReltn == null)
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-		
-		entityGroup.getCertPolicyGroupReltn().remove(foundReltn);
-
 		try
 		{
+			polGroupReltnRepo.deleteById(foundReltn.getId()).block();
 			groupRepo.save(entityGroup);
 		}
     	catch (Exception e)
@@ -663,19 +657,49 @@ public class CertPolicyResource extends ProtectedResource
      * relationships exist.
      */
     @GetMapping(value="/groups/domain", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional(readOnly=true)
     public ResponseEntity<Flux<CertPolicyGroupDomainReltn>> getPolicyGroupDomainReltns()
     {    	
     	try
     	{
-    		final Collection<CertPolicyGroupDomainReltn> retReltns = reltnRepo.findAll().stream().
- 	    		   map(reltn -> 
- 	    		   {
- 	    			  return EntityModelConversion.toModelCertPolicyGroupDomainReltn(reltn);   			   
- 	    		   }).
- 	    		   collect(Collectors.toList());
- 	    		   
- 	        final Flux<CertPolicyGroupDomainReltn> retVal = Flux.fromIterable(retReltns);    		
+    		final Flux<CertPolicyGroupDomainReltn> retVal = domainReltnRepo.findAll()
+ 	    	.flatMap(reltn -> 
+ 	    	{
+ 	    		
+  	    	   final Mono<CertPolicyGroup> polGroup = groupRepo.findById(reltn.getCertPolicyGroupId())
+   	        		.flatMap(group -> 
+   	        		{
+   	        			
+   	        			return polGroupReltnRepo.findByGroupId(group.getId())
+   	        				    .flatMap(groupReltn ->  
+   	        				    {
+   	        				       return policyRepo.findById(groupReltn.getCertPolicyId())
+   	        				       .map(pol -> Maps.immutableEntry(groupReltn, pol));
+   	        				    
+   	        				    })
+   	        				    .collect(Collectors.toMap(
+   	        							Map.Entry::getKey,
+   	        							Map.Entry::getValue))
+   	        				    .map(polUseMap -> 
+   	        				    {
+   	        				    	return EntityModelConversion.toModelCertPolicyGroup(group, polUseMap);
+   	        				    });
+   	        		});
+ 	    	   
+  	    	   final Mono<org.nhindirect.config.store.Domain> domain = this.domainRepo.findById(reltn.getDomainId());
+  	    	   
+  	    	   return domain.zipWith(polGroup, (d, p) ->
+  	    	   {
+ 	    	    	final CertPolicyGroupDomainReltn cpgdReltn = new CertPolicyGroupDomainReltn();
+  	    	    	
+ 	    	    	cpgdReltn.setId(reltn.getId());
+ 	    	    	cpgdReltn.setPolicyGroup(p);
+ 	    	    	cpgdReltn.setDomain(EntityModelConversion.toModelDomain(d, Collections.emptyList()));
+ 	    	    	
+ 	    	    	return cpgdReltn;
+  	    	   });
+  	    	   
+  	    	   			   
+ 	    	});   		
     		
  	       return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
@@ -694,14 +718,13 @@ public class CertPolicyResource extends ProtectedResource
      * to the given domain.
      */
     @GetMapping(value="groups/domain/{domain}", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional(readOnly=true)
     public ResponseEntity<Flux<CertPolicyGroup>> getPolicyGroupsByDomain(@PathVariable("domain") String domainName)
     {
     	// make sure the domain exists
     	org.nhindirect.config.store.Domain entityDomain;
     	try
     	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
+    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
     		if (entityDomain == null)
     		{
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
@@ -716,13 +739,29 @@ public class CertPolicyResource extends ProtectedResource
     	try
     	{
 
-    		final Collection<CertPolicyGroup> retReltns = reltnRepo.findByDomain(entityDomain).stream().
-    	    		   map(reltn -> {
-    	    			   return EntityModelConversion.toModelCertPolicyGroup(reltn.getCertPolicyGroup());		   
-    	    		   }).
-    	    		   collect(Collectors.toList());
-    	    		   
-    	    final Flux<CertPolicyGroup> retVal = Flux.fromIterable(retReltns);
+    		final Flux<CertPolicyGroup> retVal = domainReltnRepo.findByDomainId(entityDomain.getId())
+    	 	.flatMap(reltn -> 
+    	 	{
+    	 		return groupRepo.findById(reltn.getCertPolicyGroupId())
+        		.flatMap(group -> 
+        		{
+        			
+        			return polGroupReltnRepo.findByGroupId(group.getId())
+        				    .flatMap(groupReltn ->  
+        				    {
+        				       return policyRepo.findById(groupReltn.getCertPolicyId())
+        				       .map(pol -> Maps.immutableEntry(groupReltn, pol));
+        				    
+        				    })
+        				    .collect(Collectors.toMap(
+        							Map.Entry::getKey,
+        							Map.Entry::getValue))
+        				    .map(polUseMap -> 
+        				    {
+        				    	return EntityModelConversion.toModelCertPolicyGroup(group, polUseMap);
+        				    });
+        		});
+    	 	});   
     		
     	    return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	    
@@ -749,7 +788,7 @@ public class CertPolicyResource extends ProtectedResource
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
     	try
     	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName);
+    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
     		if (entityGroup == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -763,7 +802,7 @@ public class CertPolicyResource extends ProtectedResource
     	org.nhindirect.config.store.Domain entityDomain;
     	try
     	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
+    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
     		if (entityDomain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -778,10 +817,10 @@ public class CertPolicyResource extends ProtectedResource
     	{
 			final org.nhindirect.config.store.CertPolicyGroupDomainReltn policyGroupDomainAssoc = 
 					new org.nhindirect.config.store.CertPolicyGroupDomainReltn();
-			policyGroupDomainAssoc.setDomain(entityDomain);
-			policyGroupDomainAssoc.setCertPolicyGroup(entityGroup);
+			policyGroupDomainAssoc.setDomainId(entityDomain.getId());
+			policyGroupDomainAssoc.setCertPolicyGroupId(entityGroup.getId());
     		
-			reltnRepo.save(policyGroupDomainAssoc);
+			domainReltnRepo.save(policyGroupDomainAssoc).block();
 
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -806,7 +845,7 @@ public class CertPolicyResource extends ProtectedResource
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
     	try
     	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName);
+    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
     		if (entityGroup == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -820,7 +859,7 @@ public class CertPolicyResource extends ProtectedResource
     	org.nhindirect.config.store.Domain entityDomain;
     	try
     	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
+    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
     		if (entityDomain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -833,7 +872,7 @@ public class CertPolicyResource extends ProtectedResource
     	// now make the disassociation
     	try
     	{
-    		reltnRepo.deleteByDomainAndCertPolicyGroup(entityDomain, entityGroup);
+    		domainReltnRepo.deleteByDomainIdAndCertPolicyGroupId(entityDomain.getId(), entityGroup.getId()).block();
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -850,14 +889,13 @@ public class CertPolicyResource extends ProtectedResource
      * not exist.
      */
     @DeleteMapping(value="groups/domain/{domain}/deleteFromDomain")
-    @Transactional
     public ResponseEntity<Mono<Void>> disassociatePolicyGroupsFromDomain(@PathVariable("domain") String domainName)
     {
     	// make sure the domain exists
     	org.nhindirect.config.store.Domain entityDomain;
     	try
     	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName);
+    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
     		if (entityDomain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -870,7 +908,7 @@ public class CertPolicyResource extends ProtectedResource
     	// now make the disassociation
     	try
     	{
-    		reltnRepo.deleteByDomain(entityDomain);
+    		domainReltnRepo.deleteByDomainId(entityDomain.getId()).block();
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -893,7 +931,7 @@ public class CertPolicyResource extends ProtectedResource
     	org.nhindirect.config.store.CertPolicyGroup entityGroup;
     	try
     	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName);
+    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
     		if (entityGroup == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -906,7 +944,7 @@ public class CertPolicyResource extends ProtectedResource
     	// now make the disassociation
     	try
     	{
-    		reltnRepo.deleteByCertPolicyGroup(entityGroup);
+    		domainReltnRepo.deleteByCertPolicyGroupId(entityGroup.getId()).block();
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
     	catch (Exception e)

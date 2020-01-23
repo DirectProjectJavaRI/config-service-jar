@@ -4,10 +4,10 @@ import static org.mockito.Matchers.eq;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
@@ -21,6 +21,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+
+import reactor.core.publisher.Mono;
 
 public class AddressResource_removeAddressTest  extends SpringBaseTest
 {
@@ -99,7 +101,7 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			@Override
 			protected void setupMocks() 
 			{
-				assertTrue(addressRepo.findAll().isEmpty());
+				assertTrue(addressRepo.findAll().collectList().block().isEmpty());
 			}
 			
 			@Override
@@ -130,7 +132,7 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				assertNull(addressRepo.findByEmailAddressIgnoreCase("me@test.com"));
+				assertNull(addressRepo.findByEmailAddressIgnoreCase("me@test.com").block());
 			}
 		}.perform();
 	}	
@@ -190,8 +192,8 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 					super.setupMocks();
 
 					AddressRepository mockDAO = mock(AddressRepository.class);
-					when(mockDAO.findByEmailAddressIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.Address());
-					doThrow(new RuntimeException()).when(mockDAO).delete((org.nhindirect.config.store.Address)any());
+					when(mockDAO.findByEmailAddressIgnoreCase((String)any())).thenReturn(Mono.just(new org.nhindirect.config.store.Address()));
+					doThrow(new RuntimeException()).when(mockDAO).deleteById((Long)any());
 					
 					addressService.setAddressRepository(mockDAO);
 				}

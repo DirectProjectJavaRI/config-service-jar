@@ -21,7 +21,7 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.processor.impl;
 
-import java.util.Calendar;
+import java.time.LocalDateTime;
 import java.util.Collection;
 
 import org.apache.camel.Handler;
@@ -93,7 +93,7 @@ public class DefaultBundleCacheUpdateProcessorImpl implements BundleCacheUpdateP
 		Collection<TrustBundle> bundles;
 		try
 		{
-			bundles = bundleRepo.findAll();
+			bundles = bundleRepo.findAll().collectList().block();
 			for (TrustBundle bundle : bundles)
 			{
 				boolean refresh = false;
@@ -103,7 +103,7 @@ public class DefaultBundleCacheUpdateProcessorImpl implements BundleCacheUpdateP
 					continue;  
 				
 				// see if this bundle needs to be checked for updating
-				final Calendar lastAttempt = bundle.getLastSuccessfulRefresh();
+				final LocalDateTime lastAttempt = bundle.getLastSuccessfulRefresh();
 			
 				if (lastAttempt == null)
 					// never been attempted successfully... better go get it
@@ -111,11 +111,11 @@ public class DefaultBundleCacheUpdateProcessorImpl implements BundleCacheUpdateP
 				else
 				{
 					// check the the last attempt date against now and see if we need to refresh
-					long now = System.currentTimeMillis();
-					Calendar lastAttemptCheck = (Calendar)lastAttempt.clone();
-					lastAttemptCheck.add(Calendar.SECOND, bundle.getRefreshInterval());
+					LocalDateTime now = LocalDateTime.now();
+					LocalDateTime lastAttemptCheck = LocalDateTime.from(lastAttempt);
+					lastAttemptCheck.plusSeconds(bundle.getRefreshInterval());
 					
-					if (lastAttemptCheck.getTimeInMillis() <= now)
+					if (lastAttemptCheck.isBefore(now))
 						refresh = true;
 				}
 				

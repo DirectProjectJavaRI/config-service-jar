@@ -27,6 +27,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 
+import reactor.core.publisher.Flux;
+
 public class DNSResource_addDNSRecordTest extends SpringBaseTest
 {
 	@Autowired
@@ -107,7 +109,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				Collection<org.nhindirect.config.store.DNSRecord> retrievedRecords = dnsRepo.findAll();
+				Collection<org.nhindirect.config.store.DNSRecord> retrievedRecords = dnsRepo.findAll().collectList().block();
 				
 				assertNotNull(retrievedRecords);
 				assertEquals(this.records.size(), retrievedRecords.size());
@@ -159,7 +161,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				Collection<org.nhindirect.config.store.DNSRecord> retrievedRecords = dnsRepo.findAll();
+				Collection<org.nhindirect.config.store.DNSRecord> retrievedRecords = dnsRepo.findAll().collectList().block();
 				
 				assertNotNull(retrievedRecords);
 				assertEquals(this.records.size(), retrievedRecords.size());
@@ -293,7 +295,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 					super.setupMocks();
 
 					DNSRepository mockDAO = mock(DNSRepository.class);
-					when(mockDAO.findByNameIgnoreCaseAndType((String)any(), eq(1))).thenReturn(new ArrayList<org.nhindirect.config.store.DNSRecord>());
+					when(mockDAO.findByNameIgnoreCaseAndType((String)any(), eq(1))).thenReturn(Flux.fromIterable(new ArrayList<org.nhindirect.config.store.DNSRecord>()));
 					doThrow(new RuntimeException()).when(mockDAO).save((org.nhindirect.config.store.DNSRecord)any());
 					
 					dnsService.setDNSRepository(mockDAO);

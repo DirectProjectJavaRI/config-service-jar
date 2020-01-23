@@ -251,7 +251,7 @@ public class CertPolicyResource_getPolicyGroupDomainReltnsTest extends SpringBas
 				{
 					super.tearDownMocks();
 					
-					certService.setCertPolicyGroupDomainReltnRepository(groupReltnRepo);
+					certService.setCertPolicyGroupDomainReltnRepository(groupDomainReltnRepo);
 				}
 				
 				@Override

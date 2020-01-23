@@ -126,7 +126,7 @@ public class DNSResource_removeDNSRecordsByIdsTest extends SpringBaseTest
 				@Override
 				protected Collection<Long> getIdsToRemove()
 				{
-					final Collection<org.nhindirect.config.store.DNSRecord> recs = dnsRepo.findAll();
+					final Collection<org.nhindirect.config.store.DNSRecord> recs = dnsRepo.findAll().collectList().block();
 					
 					final Collection<Long> ids = new ArrayList<Long>();
 					for (org.nhindirect.config.store.DNSRecord rec : recs)
@@ -138,7 +138,7 @@ public class DNSResource_removeDNSRecordsByIdsTest extends SpringBaseTest
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					final Collection<org.nhindirect.config.store.DNSRecord> recs = dnsRepo.findAll();
+					final Collection<org.nhindirect.config.store.DNSRecord> recs = dnsRepo.findAll().collectList().block();
 					assertTrue(recs.isEmpty());
 				}
 			}.perform();

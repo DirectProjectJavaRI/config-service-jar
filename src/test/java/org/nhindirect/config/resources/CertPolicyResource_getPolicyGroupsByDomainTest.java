@@ -6,7 +6,7 @@ import static org.mockito.Mockito.when;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,6 +27,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+
+import reactor.core.publisher.Mono;
 
 
 public class CertPolicyResource_getPolicyGroupsByDomainTest extends SpringBaseTest
@@ -357,8 +359,8 @@ public class CertPolicyResource_getPolicyGroupsByDomainTest extends SpringBaseTe
 						CertPolicyGroupDomainReltnRepository mockPolicyDAO = mock(CertPolicyGroupDomainReltnRepository.class);
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						
-						when(mockDomainDAO.findByDomainNameIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.Domain());
-						doThrow(new RuntimeException()).when(mockPolicyDAO).findByDomain((org.nhindirect.config.store.Domain)any());
+						when(mockDomainDAO.findByDomainNameIgnoreCase((String)any())).thenReturn(Mono.just(new org.nhindirect.config.store.Domain()));
+						doThrow(new RuntimeException()).when(mockPolicyDAO).findByDomainId(any());
 						
 						certService.setCertPolicyGroupDomainReltnRepository(mockPolicyDAO);
 						certService.setDomainRepository(mockDomainDAO);
@@ -374,7 +376,7 @@ public class CertPolicyResource_getPolicyGroupsByDomainTest extends SpringBaseTe
 				{
 					super.tearDownMocks();
 					
-					certService.setCertPolicyGroupDomainReltnRepository(groupReltnRepo);
+					certService.setCertPolicyGroupDomainReltnRepository(groupDomainReltnRepo);
 					certService.setDomainRepository(domainRepo);
 				}
 				

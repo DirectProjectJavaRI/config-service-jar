@@ -24,6 +24,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 
+import reactor.core.publisher.Mono;
+
 public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 {
 	@Autowired
@@ -109,7 +111,7 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					assertNull(bundleRepo.findByBundleNameIgnoreCase("testBundle1"));
+					assertNull(bundleRepo.findByBundleNameIgnoreCase("testBundle1").block());
 				}
 			}.perform();
 		}
@@ -210,7 +212,7 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 
 						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
 						
-						when(mockDAO.findByBundleNameIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.TrustBundle());
+						when(mockDAO.findByBundleNameIgnoreCase((String)any())).thenReturn(Mono.just(new org.nhindirect.config.store.TrustBundle()));
 						doThrow(new RuntimeException()).when(mockDAO).deleteById((Long)any());
 						
 						bundleService.setTrustBundleRepository(mockDAO);

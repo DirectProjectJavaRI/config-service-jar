@@ -6,6 +6,7 @@ import org.nhindirect.config.processor.BundleCacheUpdateProcessor;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
 import org.nhindirect.config.processor.impl.DefaultBundleCacheUpdateProcessorImpl;
 import org.nhindirect.config.processor.impl.DefaultBundleRefreshProcessorImpl;
+import org.nhindirect.config.repository.TrustBundleAnchorRepository;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,10 +24,10 @@ public class BundleProcessorConfig
 	protected String refreshEndpoint;
 	
 	@Bean
-	public BundleRefreshProcessor bundleRefreshProcessor(TrustBundleRepository trustBundleRepo)
+	public BundleRefreshProcessor bundleRefreshProcessor(TrustBundleRepository trustBundleRepo, TrustBundleAnchorRepository bundleAnchorRepo)
 	{
 		final DefaultBundleRefreshProcessorImpl retVal = new DefaultBundleRefreshProcessorImpl();
-		retVal.setRepository(trustBundleRepo);
+		retVal.setRepositories(trustBundleRepo, bundleAnchorRepo);
 		
 		return retVal;
 	}

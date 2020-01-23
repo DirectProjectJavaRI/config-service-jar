@@ -17,7 +17,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.repository.CertificateRepository;
-import org.nhindirect.config.store.Certificate;
+import org.nhindirect.config.model.Certificate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -115,7 +115,7 @@ public class CertificateResource_removeCertificatesByOwnerTest extends SpringBas
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll();
+					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll().collectList().block();
 					assertEquals(1, certs.size());
 				}
 			}.perform();
@@ -160,7 +160,7 @@ public class CertificateResource_removeCertificatesByOwnerTest extends SpringBas
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll();
+					final Collection<org.nhindirect.config.store.Certificate> certs = certRepo.findAll().collectList().block();
 					assertEquals(0, certs.size());
 				}
 			}.perform();

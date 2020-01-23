@@ -30,6 +30,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 
+import reactor.core.publisher.Mono;
+
 public class TrustBundleResource_getAllTrustBundleDomainRelts extends SpringBaseTest
 {
 	@Autowired
@@ -354,7 +356,7 @@ public class TrustBundleResource_getAllTrustBundleDomainRelts extends SpringBase
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						TrustBundleDomainReltnRepository mockReltnDAO = mock(TrustBundleDomainReltnRepository.class);
 						
-						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(new org.nhindirect.config.store.Domain());
+						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(Mono.just(new org.nhindirect.config.store.Domain()));
 						doThrow(new RuntimeException()).when(mockReltnDAO).findAll();
 						
 						bundleService.setTrustBundleDomainReltnRepository(mockReltnDAO);

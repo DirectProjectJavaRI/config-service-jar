@@ -59,6 +59,9 @@ public class DefaultBundleCacheUpdateProcessorImpl_springInitTest extends Spring
 		
 		final ResponseEntity<Mono<TrustBundle>> addedBundle = trustService.getTrustBundleByName("Test Bundle");
 		final TrustBundle addBundle = addedBundle.getBody().block();
+		
+		assertNotNull(addBundle);
+		
 		assertTrue(addBundle.getTrustBundleAnchors().size() > 0);		
 		
 		for (TrustBundleAnchor anchor : addBundle.getTrustBundleAnchors())

@@ -31,6 +31,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -58,6 +60,7 @@ import org.nhindirect.common.crypto.CryptoExtensions;
 import org.nhindirect.common.options.OptionsManager;
 import org.nhindirect.common.options.OptionsParameter;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
+import org.nhindirect.config.repository.TrustBundleAnchorRepository;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.nhindirect.config.store.BundleRefreshError;
 import org.nhindirect.config.store.BundleThumbprint;
@@ -92,6 +95,8 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
      * Trust bundle repo
      */
 	protected TrustBundleRepository bundleRepo;
+	
+	protected TrustBundleAnchorRepository bundleAnchorRepo;
 	
     static
     {
@@ -169,10 +174,22 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	/**
 	 * Sets the trust bundle repository for updating the bundle storage medium.
 	 * @param bundleRepo The trust bundle repository
+	 * @deprecated
 	 */
 	public void setRepository(TrustBundleRepository bundleRepo)
 	{
 		this.bundleRepo = bundleRepo;
+	}
+	
+	/**
+	 * Sets the trust bundle repositories for updating the bundle storage medium.
+	 * @param bundleRepo The trust bundle repository
+	 * @param bundleAnchorRepo The trust bundle anchor repository
+	 */
+	public void setRepositories(TrustBundleRepository bundleRepo, TrustBundleAnchorRepository bundleAnchorRepo)
+	{
+		this.bundleRepo = bundleRepo;
+		this.bundleAnchorRepo = bundleAnchorRepo;
 	}
 	
 	/**
@@ -207,9 +224,9 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			///CLOVER:OFF
 			catch (NoSuchAlgorithmException ex)
 			{
-				bundle.setLastRefreshAttempt(processAttempStart);
-				bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT);
-				bundleRepo.save(bundle);
+				bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+				bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
+				bundleRepo.save(bundle).block();	
 				log.error("Failed to generate downloaded bundle thumbprint ", ex);
 			}	
 			///CLOVER:ON
@@ -217,9 +234,9 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		
 		if (!update)
 		{
-			bundle.setLastRefreshAttempt(processAttempStart);
-			bundle.setLastRefreshError(BundleRefreshError.SUCCESS);
-			bundleRepo.save(bundle);
+			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+			bundle.setLastRefreshError(BundleRefreshError.SUCCESS.ordinal());
+			bundleRepo.save(bundle).block();	
 
 			return;
 		}
@@ -240,7 +257,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 				{
 					final TrustBundleAnchor anchorToAdd = new TrustBundleAnchor();
 					anchorToAdd.setData(downloadedAnchor.getEncoded());
-					anchorToAdd.setTrustBundle(bundle);
+					anchorToAdd.setTrustBundleId(bundle.getId());
 					
 					newAnchors.add(anchorToAdd);
 				}
@@ -252,19 +269,22 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 				///CLOVER:ON
 			}
 
-			bundle.setTrustBundleAnchors(newAnchors);
-			bundle.setLastRefreshAttempt(processAttempStart);
-			bundle.setLastRefreshError(BundleRefreshError.SUCCESS);
+    		bundleAnchorRepo.deleteByTrustBundleId(bundle.getId()).block();
+			bundleAnchorRepo.saveAll(newAnchors).collectList().block();
+			
+			
+			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+			bundle.setLastRefreshError(BundleRefreshError.SUCCESS.ordinal());
 			bundle.setCheckSum(checkSum);
-			bundle.setLastSuccessfulRefresh(Calendar.getInstance());
-			bundleRepo.save(bundle);
+			bundle.setLastSuccessfulRefresh(LocalDateTime.now());
+			bundleRepo.save(bundle).block();
 
 		}
 		catch (Exception e) 
 		{ 
-			bundle.setLastRefreshAttempt(processAttempStart);
-			bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT);
-			bundleRepo.save(bundle);			
+			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+			bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
+			bundleRepo.save(bundle).block();	
 			log.error("Failed to write updated bundle anchors to data store ", e);
 		}
     }
@@ -335,9 +355,9 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		    		
 		    		if (!sigVerified)
 		    		{
-		    			existingBundle.setLastRefreshAttempt(processAttempStart);
-		    			existingBundle.setLastRefreshError(BundleRefreshError.UNMATCHED_SIGNATURE);
-		    			bundleRepo.save(existingBundle);	
+		    			existingBundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+		    			existingBundle.setLastRefreshError(BundleRefreshError.UNMATCHED_SIGNATURE.ordinal());
+		    			bundleRepo.save(existingBundle).block();	
 						log.warn("Downloaded bundle signature did not match configured signing certificate.");
 						return null;
 		    		}
@@ -351,9 +371,9 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			}
 			catch (Exception e)
 			{
-    			existingBundle.setLastRefreshAttempt(processAttempStart);
-    			existingBundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT);
-    			bundleRepo.save(existingBundle);	
+    			existingBundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+    			existingBundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
+    			bundleRepo.save(existingBundle).block();	
 				log.warn("Failed to extract anchors from downloaded bundle at URL " + existingBundle.getBundleURL());
 			}
 			finally
@@ -410,18 +430,18 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		///CLOVER:OFF
 		catch (SocketTimeoutException e)
 		{
-			bundle.setLastRefreshAttempt(processAttempStart);
-			bundle.setLastRefreshError(BundleRefreshError.DOWNLOAD_TIMEOUT);
-			bundleRepo.save(bundle);	
+			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+			bundle.setLastRefreshError(BundleRefreshError.DOWNLOAD_TIMEOUT.ordinal());
+			bundleRepo.save(bundle).block();		
 
 			log.warn("Failed to download bundle from URL " + bundle.getBundleURL(), e);
 		}
 		///CLOVER:ON
 		catch (Exception e)
 		{
-			bundle.setLastRefreshAttempt(processAttempStart);
-			bundle.setLastRefreshError(BundleRefreshError.NOT_FOUND);
-			bundleRepo.save(bundle);				
+			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+			bundle.setLastRefreshError(BundleRefreshError.NOT_FOUND.ordinal());
+			bundleRepo.save(bundle).block();				
 
 			log.warn("Failed to download bundle from URL " + bundle.getBundleURL(), e);
 		}

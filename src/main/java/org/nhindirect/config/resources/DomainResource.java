@@ -22,20 +22,23 @@ THE POSSIBILITY OF SUCH DAMAGE.
 package org.nhindirect.config.resources;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.repository.AddressRepository;
+import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
 import org.nhindirect.config.repository.DomainRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -67,6 +70,11 @@ public class DomainResource extends ProtectedResource
      * Trust bundle resource injected by Spring
      */
     protected TrustBundleResource bundleResource;
+    
+    /**
+     * Cert policy repository injected by Spring
+     */
+    protected CertPolicyGroupDomainReltnRepository domainReltnRepo;
     
     /**
      * Address repository is injected by Spring
@@ -117,22 +125,33 @@ public class DomainResource extends ProtectedResource
     } 
     
     /**
+     * Sets the cert policy/domain relation repository.  Auto populate by Spring
+     * @param domainReltnRepo The cert policy/domain relation repository.
+     */
+    @Autowired
+    public void setDomainReltnRepository(CertPolicyGroupDomainReltnRepository domainReltnRepo) 
+    {
+        this.domainReltnRepo = domainReltnRepo;
+    }
+    
+    /**
      * Gets a domain by name.
      * @param domain The name of the domain to retrieve.
      * @return A JSON representation of the domain.  Returns a status of 404 if a domain with the given name does
      * not exist.
      */
     @GetMapping(value="{domain}", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional(readOnly=true)
     public ResponseEntity<Mono<Domain>> getDomain(@PathVariable("domain") String domain)
     {   	
     	try
     	{
-    		org.nhindirect.config.store.Domain retDomain = domainRepo.findByDomainNameIgnoreCase(domain);
+    		org.nhindirect.config.store.Domain retDomain = domainRepo.findByDomainNameIgnoreCase(domain).block();
     		if (retDomain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(EntityModelConversion.toModelDomain(retDomain)));
+    		final List<org.nhindirect.config.store.Address> addrs =  addRepo.findByDomainId(retDomain.getId()).collectList().block();
+    		
+    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(EntityModelConversion.toModelDomain(retDomain, addrs)));
     	}
     	catch (Exception e)
     	{
@@ -149,7 +168,6 @@ public class DomainResource extends ProtectedResource
      * domains match the search parameters.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    @Transactional(readOnly=true)
     public ResponseEntity<Flux<Domain>> searchDomains(@RequestParam(name="domainName", defaultValue="") String domainName,
     		@RequestParam(name="entityStatus", defaultValue="")String entityStatus)
     {
@@ -174,20 +192,36 @@ public class DomainResource extends ProtectedResource
     	try
     	{
 
-    		Collection<org.nhindirect.config.store.Domain> domains = null;
+    		Flux<org.nhindirect.config.store.Domain> domains = null;
     		if (status == null && domainName.isEmpty())
     			domains = domainRepo.findAll();
     		else if (status == null)
-    			domains = domainRepo.findByDomainNameContainingIgnoreCase(domainName);
+    			domains = domainRepo.findByDomainNameContainingIgnoreCase("%" + domainName.toUpperCase() + "%");
     		else if (domainName.isEmpty())
-    			domains = domainRepo.findByStatus(status);
+    			domains = domainRepo.findByStatus(status.ordinal());
     		else
-    			domains = domainRepo.findByDomainNameContainingIgnoreCaseAndStatus(domainName, status);
+    			domains = domainRepo.findByDomainNameContainingIgnoreCaseAndStatus("%" + domainName.toUpperCase() + "%", status.ordinal());
 
-    		final Flux<Domain> retVal = Flux.fromStream(domains.stream().
-    				map(domain -> {
-    					return EntityModelConversion.toModelDomain(domain);
-    				}));		
+    		final Flux<Domain> retVal = domains
+    		.flatMap(domain -> 
+    		{
+    			return addRepo.findByDomainId(domain.getId())
+    			.map(addr -> new DomainAddrsTuple(domain, addr))
+    			.switchIfEmpty(Mono.just(new DomainAddrsTuple(domain, null)))
+    			.collectList();
+    			
+    		})
+    		.map(tupls ->
+    		{
+    			final List<org.nhindirect.config.store.Address> addrs = new ArrayList<>();
+    			
+    			for (DomainAddrsTuple tupl : tupls)
+    				if (tupl.getAddr() != null)
+    					addrs.add(tupl.getAddr());
+    				
+    			return EntityModelConversion.toModelDomain(tupls.get(0).getDomain(), addrs);
+    		});
+    		
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
@@ -211,7 +245,7 @@ public class DomainResource extends ProtectedResource
     	// check to see if it already exists
     	try
     	{
-    		if (domainRepo.findByDomainNameIgnoreCase(domain.getDomainName()) != null)
+    		if (domainRepo.findByDomainNameIgnoreCase(domain.getDomainName()).block() != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -220,27 +254,37 @@ public class DomainResource extends ProtectedResource
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     	
-    	org.nhindirect.config.store.Domain toDomain = EntityModelConversion.toEntityDomain(domain);
+    	Map.Entry<org.nhindirect.config.store.Domain, Collection<org.nhindirect.config.store.Address>> toEntry = EntityModelConversion.toEntityDomain(domain);
     	
     	
     	try
     	{
-    		toDomain = domainRepo.save(toDomain);
-
-    		// set the postmaster address if one was sent
-    		if (domain.getPostmasterAddress() != null)
-    		{
-    			for (org.nhindirect.config.store.Address addr : toDomain.getAddresses())
-    			{
-    				if (addr.getEmailAddress().compareToIgnoreCase(domain.getPostmasterAddress().getEmailAddress()) == 0)
-    				{
-    					toDomain.setPostmasterAddressId(addr.getId());
-    					domainRepo.save(toDomain);
-    					break;
-    				}
-    			}
-    		}
+    		org.nhindirect.config.store.Domain savedDomain = toEntry.getKey();
+    		
+    		domainRepo.save(savedDomain).block();
+    		
+    		Collection<org.nhindirect.config.store.Address> saveAddrs = toEntry.getValue();
     			
+    		for(org.nhindirect.config.store.Address addr : saveAddrs)
+    		{
+    			addr.setId(null);
+    			addr.setDomainId(savedDomain.getId());
+    		}
+    		
+    		if (!saveAddrs.isEmpty())
+    			addRepo.saveAll(saveAddrs).collectList().block();
+    		
+    		// find the postmaster if it exists
+       		for(org.nhindirect.config.store.Address addr : saveAddrs)
+    		{
+       			if (addr.getEmailAddress().compareToIgnoreCase(domain.getPostmasterAddress().getEmailAddress()) == 0)
+       			{
+       				savedDomain.setPostmasterAddressId(addr.getId());
+       				domainRepo.save(savedDomain).block();
+       				break;
+       			}
+    		}
+    		
     		final URI uri = new UriTemplate("/{domain}").expand("domain/" + domain.getDomainName());
     		
     		return ResponseEntity.created(uri).cacheControl(noCache).build();
@@ -265,7 +309,7 @@ public class DomainResource extends ProtectedResource
     	org.nhindirect.config.store.Domain existingDomain;
     	try
     	{
-    		existingDomain = domainRepo.findByDomainNameIgnoreCase(domain.getDomainName());
+    		existingDomain = domainRepo.findByDomainNameIgnoreCase(domain.getDomainName()).block();
 	    	if (existingDomain == null)
 	    		return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
@@ -275,36 +319,27 @@ public class DomainResource extends ProtectedResource
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     	
-    	final org.nhindirect.config.store.Domain toDomain = EntityModelConversion.toEntityDomain(domain);
+    	final org.nhindirect.config.store.Domain toDomain = EntityModelConversion.toEntityDomain(domain).getKey();
     	toDomain.setId(existingDomain.getId());
-    	/**
-    	 * Make sure we don't jack up the addresses
-    	 */
-    	if(domain.getPostmasterAddress() != null)
+    	
+    	List<org.nhindirect.config.store.Address> addrs = addRepo.findByDomainId(existingDomain.getId()).collectList().block();
+    	
+    	
+    	toDomain.setPostmasterAddressId(0L);
+    	if(domain.getPostmasterAddress() != null && !addrs.isEmpty())
     	{
-	    	for (org.nhindirect.config.store.Address existingAddr : existingDomain.getAddresses())
+	    	for (org.nhindirect.config.store.Address existingAddr : addrs)
 	    	{
-	    		for (org.nhindirect.config.store.Address newAddr : toDomain.getAddresses())
+	    		if (existingAddr.getEmailAddress().toLowerCase().equals(domain.getPostmasterAddress().getEmailAddress()))
 	    		{
-	    			if (existingAddr.getEmailAddress().toLowerCase().equals(newAddr.getEmailAddress().toLowerCase()))
-	    			{
-	    				newAddr.setId(existingAddr.getId());
-	    			}
-	    		}
-	    		
-	    		if(domain.getPostmasterAddress() != null)
-	    		{
-		    		if (existingAddr.getEmailAddress().toLowerCase().equals(domain.getPostmasterAddress().getEmailAddress()))
-		    		{
-		    			toDomain.setPostmasterAddressId(existingAddr.getId());
-		    		}
+	    			toDomain.setPostmasterAddressId(existingAddr.getId());
 	    		}
 	    	}
     	}
     	
     	try
     	{
-    		domainRepo.save(toDomain);
+    		domainRepo.save(toDomain).block();
     		
     		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
     	}
@@ -324,9 +359,11 @@ public class DomainResource extends ProtectedResource
     @DeleteMapping("{domain}")
     public ResponseEntity<Mono<Void>> removedDomain(@PathVariable("domain") String domain)   
     {
+    	final org.nhindirect.config.store.Domain foundDomain = domainRepo.findByDomainNameIgnoreCase(domain).block();
+    	
     	try
     	{
-    		if (domainRepo.findByDomainNameIgnoreCase(domain) == null)
+    		if (foundDomain == null)
     			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -340,7 +377,12 @@ public class DomainResource extends ProtectedResource
     		// remove any associations to bundles
     		bundleResource.disassociateTrustBundlesFromDomain(domain);
     		
-    		domainRepo.deleteByDomainNameIgnoreCase(domain);
+    		// remove any association to policies
+    		domainReltnRepo.deleteByDomainId(foundDomain.getId()).block();
+    		
+    		addRepo.deleteByDomainId(foundDomain.getId()).block();
+    		
+    		domainRepo.deleteById(foundDomain.getId()).block();
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -350,4 +392,26 @@ public class DomainResource extends ProtectedResource
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}    	
     }    
+    
+    static class DomainAddrsTuple
+    {
+    	final org.nhindirect.config.store.Domain domain;
+    	final org.nhindirect.config.store.Address addr;
+
+		public DomainAddrsTuple(org.nhindirect.config.store.Domain domain, org.nhindirect.config.store.Address addr)
+    	{
+    		this.domain = domain;
+    		this.addr = addr;
+    	}
+    	
+    	public org.nhindirect.config.store.Domain getDomain()
+		{
+			return domain;
+		}
+
+		public org.nhindirect.config.store.Address getAddr()
+		{
+			return addr;
+		}
+    }
 }

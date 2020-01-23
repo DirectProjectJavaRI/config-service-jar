@@ -21,10 +21,17 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.resources.util;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TimeZone;
 
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Anchor;
@@ -44,8 +51,11 @@ import org.nhindirect.config.model.TrustBundleAnchor;
 import org.nhindirect.config.model.exceptions.CertificateConversionException;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.model.utils.CertUtils.CertContainer;
+import org.nhindirect.config.store.CertPolicyGroupReltn;
 import org.nhindirect.config.store.CertificateException;
 import org.nhindirect.policy.PolicyLexicon;
+
+import com.google.common.collect.Maps;
 
 /**
  * Conversion methods from model to entity representation and vice versa.
@@ -55,93 +65,100 @@ import org.nhindirect.policy.PolicyLexicon;
 public class EntityModelConversion 
 {
 	
-	public static org.nhindirect.config.store.Domain toEntityDomain(Domain domain)
+	public static Map.Entry<org.nhindirect.config.store.Domain, Collection<org.nhindirect.config.store.Address>> toEntityDomain(Domain domain)
 	{
 		final org.nhindirect.config.store.Domain retVal = new org.nhindirect.config.store.Domain();
 		
 		final Collection<org.nhindirect.config.store.Address> addresses = new ArrayList<org.nhindirect.config.store.Address>();
 		if (domain.getAddresses() != null)
 		{
+			boolean postmasterInAddressList = false;
+			
 			for (Address address : domain.getAddresses())
 			{
 				addresses.add(toEntityAddress(address, retVal));
+				if (domain.getPostmasterAddress() != null &&  address.getEmailAddress().equals(domain.getPostmasterAddress().getEmailAddress()))
+				{
+					if (address.getId() >= 0)
+						retVal.setPostmasterAddressId(address.getId());
+					
+					postmasterInAddressList = true;
+				}
 			}
+			
+			if (!postmasterInAddressList && domain.getPostmasterAddress() != null)
+				addresses.add(toEntityAddress(domain.getPostmasterAddress(), retVal));
+				
 		}
-		retVal.setAddresses(addresses);
-		retVal.setCreateTime(domain.getCreateTime());
-		retVal.setDomainName(domain.getDomainName());
-		retVal.setId(domain.getId());
 		
-		if (domain.getPostmasterAddress() != null)
-			retVal.setPostMasterEmail(domain.getPostmasterAddress().getEmailAddress());
+		retVal.setCreateTime(localDateTimeFromCalendar(domain.getCreateTime()));
+		retVal.setDomainName(domain.getDomainName());
+		if (domain.getId() > 0)
+			retVal.setId(domain.getId());
 
 		
 		if (domain.getStatus() != null)
-			retVal.setStatus(org.nhindirect.config.store.EntityStatus.valueOf(domain.getStatus().toString()));
-		retVal.setUpdateTime(domain.getUpdateTime());
+			retVal.setStatus(org.nhindirect.config.store.EntityStatus.valueOf(domain.getStatus().toString()).ordinal());
+		retVal.setUpdateTime(localDateTimeFromCalendar(domain.getUpdateTime()));
 		
-		return retVal;
+		return Maps.immutableEntry(retVal, addresses);
 	}
 	
-	public static Domain toModelDomain(org.nhindirect.config.store.Domain domain)
+	public static Domain toModelDomain(org.nhindirect.config.store.Domain domain, List<org.nhindirect.config.store.Address> addrs)
 	{
 		final Domain retVal = new Domain();
 		
 		final Collection<Address> addresses = new ArrayList<Address>();
-		if (domain.getAddresses() != null)
+		if (addrs != null)
 		{
-			for (org.nhindirect.config.store.Address address : domain.getAddresses())
+			for (org.nhindirect.config.store.Address address : addrs)
 			{
-				addresses.add(toModelAddress(address));
+				addresses.add(toModelAddress(address, domain.getDomainName()));
 			}
 		}
 		retVal.setAddresses(addresses);
-		retVal.setCreateTime(domain.getCreateTime());
+		retVal.setCreateTime(calendarFromLocalDateTime(domain.getCreateTime()));
 		retVal.setDomainName(domain.getDomainName());
 		retVal.setId(domain.getId());
 
 		// get the postmaster address
-		if (domain.getPostMasterEmail() != null && !domain.getPostMasterEmail().isEmpty())
-		{
-			System.out.println("Postmaster email address: " + domain.getPostMasterEmail());
-	        if ((domain.getAddresses().size() > 0) && (domain.getPostmasterAddressId() != null) && (domain.getPostmasterAddressId() > 0)) 
-	        {
-	            for (org.nhindirect.config.store.Address address : domain.getAddresses()) 
-	            {
-	                if (address.getId().equals(domain.getPostmasterAddressId())) 
-	                {
-	        			retVal.setPostmasterAddress(toModelAddress(address));
-	        			break;
-	                }
-	            }
-	        }			
-		}
-		
-		if (domain.getStatus() != null)
-			retVal.setStatus(EntityStatus.valueOf(domain.getStatus().toString()));
-		retVal.setUpdateTime(domain.getUpdateTime());
+        if ((addrs.size() > 0) && (domain.getPostmasterAddressId() != null) && (domain.getPostmasterAddressId() > 0)) 
+        {
+            for (org.nhindirect.config.store.Address address : addrs) 
+            {
+                if (address.getId().equals(domain.getPostmasterAddressId())) 
+                {
+        			retVal.setPostmasterAddress(toModelAddress(address, domain.getDomainName()));
+        			break;
+                }
+            }
+        }			
+
+		if (domain.getStatus() >= 0)
+			retVal.setStatus(EntityStatus.values()[domain.getStatus()]);
+		retVal.setUpdateTime(calendarFromLocalDateTime(domain.getUpdateTime()));
 		
 		return retVal;
 	}
 	
-	public static Address toModelAddress(org.nhindirect.config.store.Address address)
+	public static Address toModelAddress(org.nhindirect.config.store.Address address, String domainName)
 	{
     	if (address == null)
     		return null;
     	
     	final Address retVal = new Address();
-    	retVal.setCreateTime(address.getCreateTime());
+    	retVal.setCreateTime(calendarFromLocalDateTime(address.getCreateTime()));
     	retVal.setDisplayName(address.getDisplayName());
     	retVal.setEmailAddress(address.getEmailAddress());
     	retVal.setEndpoint(address.getEndpoint());
     	retVal.setId(address.getId());
-    	if (address.getStatus() != null)
-    		retVal.setStatus(EntityStatus.valueOf(address.getStatus().toString()));
+    	if (address.getStatus() >= 0)
+    		retVal.setStatus(EntityStatus.values()[address.getStatus()]);
     	retVal.setType(address.getType());
-    	retVal.setUpdateTime(address.getUpdateTime());
+    	retVal.setUpdateTime(calendarFromLocalDateTime(address.getUpdateTime()));
     	
-    	if (address.getDomain() != null)
-    		retVal.setDomainName(address.getDomain().getDomainName());
+    	if (!domainName.isEmpty())
+    		retVal.setDomainName(domainName);
     	
     	return retVal;
 	}
@@ -152,16 +169,18 @@ public class EntityModelConversion
     		return null;
     	
     	final org.nhindirect.config.store.Address retVal = new org.nhindirect.config.store.Address();
-    	retVal.setCreateTime(address.getCreateTime());
+    	retVal.setCreateTime(localDateTimeFromCalendar(address.getCreateTime()));
     	retVal.setDisplayName(address.getDisplayName());
     	retVal.setEmailAddress(address.getEmailAddress());
     	retVal.setEndpoint(address.getEndpoint());
-    	retVal.setId(address.getId());
+    	
+    	if (address.getId() >= 0)
+    		retVal.setId(address.getId());
     	if (address.getStatus() != null)
-    		retVal.setStatus(org.nhindirect.config.store.EntityStatus.valueOf(address.getStatus().toString()));
+    		retVal.setStatus(org.nhindirect.config.store.EntityStatus.valueOf(address.getStatus().toString()).ordinal());
     	retVal.setType(address.getType());
-    	retVal.setUpdateTime(address.getUpdateTime());
-    	retVal.setDomain(domain);
+    	retVal.setUpdateTime(localDateTimeFromCalendar(address.getUpdateTime()));
+    	retVal.setDomainId(domain.getId());
     	
     	return retVal;
     }
@@ -175,15 +194,15 @@ public class EntityModelConversion
     	
     	retVal.setCertificateData(anchor.getData());
     	retVal.setCertificateId(anchor.getCertificateId());
-    	retVal.setCreateTime(anchor.getCreateTime());
+    	retVal.setCreateTime(calendarFromLocalDateTime(anchor.getCreateTime()));
     	retVal.setId(anchor.getId());
     	retVal.setIncoming(anchor.isIncoming());
     	retVal.setOutgoing(anchor.isOutgoing());
     	retVal.setOwner(anchor.getOwner());
-    	retVal.setStatus(EntityStatus.valueOf(anchor.getStatus().toString()));
+    	retVal.setStatus(EntityStatus.values()[anchor.getStatus()]);
     	retVal.setThumbprint(anchor.getThumbprint());
-    	retVal.setValidEndDate(anchor.getValidEndDate());
-    	retVal.setValidStartDate(anchor.getValidStartDate());
+    	retVal.setValidEndDate(calendarFromLocalDateTime(anchor.getValidEndDate()));
+    	retVal.setValidStartDate(calendarFromLocalDateTime(anchor.getValidStartDate()));
     	
     	return retVal;
     }
@@ -197,14 +216,16 @@ public class EntityModelConversion
     	
     	retVal.setData(anchor.getCertificateData());
     	retVal.setCertificateId(anchor.getCertificateId());
-    	retVal.setCreateTime(anchor.getCreateTime());
-    	retVal.setId(anchor.getId());
+    	retVal.setCreateTime(localDateTimeFromCalendar(anchor.getCreateTime()));
+    	
+    	if (anchor.getId() >= 0)
+    		retVal.setId(anchor.getId());
     	retVal.setIncoming(anchor.isIncoming());
     	retVal.setOutgoing(anchor.isOutgoing());
     	retVal.setOwner(anchor.getOwner());
-    	retVal.setStatus(org.nhindirect.config.store.EntityStatus.valueOf(anchor.getStatus().toString()));
-    	retVal.setValidEndDate(anchor.getValidEndDate());
-    	retVal.setValidStartDate(anchor.getValidStartDate());
+    	retVal.setStatus(org.nhindirect.config.store.EntityStatus.valueOf(anchor.getStatus().toString()).ordinal());
+    	retVal.setValidEndDate(localDateTimeFromCalendar(anchor.getValidEndDate()));
+    	retVal.setValidStartDate(localDateTimeFromCalendar(anchor.getValidStartDate()));
     	
     	return retVal;
     }    
@@ -217,15 +238,15 @@ public class EntityModelConversion
     	final Certificate retVal = new Certificate();
     	
     	retVal.setOwner(cert.getOwner());
-    	retVal.setCreateTime(cert.getCreateTime());
+    	retVal.setCreateTime(calendarFromLocalDateTime(cert.getCreateTime()));
     	retVal.setData(cert.getData());
     	retVal.setId(cert.getId());
     	retVal.setPrivateKey(cert.isPrivateKey());
-    	if (cert.getStatus() != null)
-    		retVal.setStatus(EntityStatus.valueOf(cert.getStatus().toString()));
+    	if (cert.getStatus() >= 0)
+    		retVal.setStatus(EntityStatus.values()[cert.getStatus()]);
     	retVal.setThumbprint(cert.getThumbprint());
-    	retVal.setValidEndDate(cert.getValidEndDate());
-    	retVal.setValidStartDate(cert.getValidStartDate());
+    	retVal.setValidEndDate(calendarFromLocalDateTime(cert.getValidEndDate()));
+    	retVal.setValidStartDate(calendarFromLocalDateTime(cert.getValidStartDate()));
 
     	
     	return retVal;
@@ -239,21 +260,24 @@ public class EntityModelConversion
     	final org.nhindirect.config.store.Certificate retVal = new org.nhindirect.config.store.Certificate();
     	
     	retVal.setOwner(cert.getOwner());
-    	retVal.setCreateTime(cert.getCreateTime());
+    	retVal.setCreateTime(localDateTimeFromCalendar(cert.getCreateTime()));
     	retVal.setData(cert.getData());
-    	retVal.setId(cert.getId());
+    	
+    	if (cert.getId() >= 0)
+    		retVal.setId(cert.getId());
+    	
     	if (cert.getStatus() != null)
-    		retVal.setStatus(org.nhindirect.config.store.EntityStatus.valueOf(cert.getStatus().toString()));
+    		retVal.setStatus(org.nhindirect.config.store.EntityStatus.valueOf(cert.getStatus().toString()).ordinal());
     	
     	final CertContainer cont = CertUtils.toCertContainer(retVal.getData());
     	
     	final Calendar endDate = Calendar.getInstance(Locale.getDefault());
     	endDate.setTime(cont.getCert().getNotAfter());
-    	retVal.setValidEndDate(endDate);
+    	retVal.setValidEndDate(localDateTimeFromCalendar(endDate));
     	
     	final Calendar startDate = Calendar.getInstance(Locale.getDefault());
     	startDate.setTime(cont.getCert().getNotBefore());	
-    	retVal.setValidStartDate(startDate);
+    	retVal.setValidStartDate(localDateTimeFromCalendar(startDate));
 
     	
     	return retVal;
@@ -266,7 +290,7 @@ public class EntityModelConversion
     	
     	final DNSRecord retVal = new DNSRecord();
     	
-    	retVal.setCreateTime(record.getCreateTime());
+    	retVal.setCreateTime(calendarFromLocalDateTime(record.getCreateTime()));
     	retVal.setData(record.getData());
     	retVal.setDclass(record.getDclass());
     	retVal.setId(record.getId());
@@ -284,10 +308,13 @@ public class EntityModelConversion
     	
     	final org.nhindirect.config.store.DNSRecord retVal = new org.nhindirect.config.store.DNSRecord();
     	
-    	retVal.setCreateTime(record.getCreateTime());
+    	retVal.setCreateTime(localDateTimeFromCalendar(record.getCreateTime()));
     	retVal.setData(record.getData());
     	retVal.setDclass(record.getDclass());
-    	retVal.setId(record.getId());
+    	
+    	if (record.getId() >=0)
+    		retVal.setId(record.getId());
+    	
     	retVal.setName(record.getName());
     	retVal.setTtl(record.getTtl());
     	retVal.setType(record.getType());
@@ -304,16 +331,16 @@ public class EntityModelConversion
     	
     	retVal.setId(setting.getId());
     	retVal.setName(setting.getName());
-    	if (setting.getStatus() != null)
-    		retVal.setStatus(EntityStatus.valueOf(setting.getStatus().toString()));
-    	retVal.setUpdateTime(setting.getUpdateTime());
-    	retVal.setCreateTime(setting.getCreateTime());
+    	if (setting.getStatus() >= 0)
+    		retVal.setStatus(EntityStatus.values()[setting.getStatus()]);
+    	retVal.setUpdateTime(calendarFromLocalDateTime(setting.getUpdateTime()));
+    	retVal.setCreateTime(calendarFromLocalDateTime(setting.getCreateTime()));
     	retVal.setValue(setting.getValue());
     	
     	return retVal;
     }    
     
-    public static TrustBundle toModelTrustBundle(org.nhindirect.config.store.TrustBundle bundle)
+    public static TrustBundle toModelTrustBundle(org.nhindirect.config.store.TrustBundle bundle, List<org.nhindirect.config.store.TrustBundleAnchor> anchors)
     {
     	if (bundle == null)
     		return null;
@@ -322,17 +349,17 @@ public class EntityModelConversion
     	
     	final Collection<TrustBundleAnchor> trustAnchors = new ArrayList<TrustBundleAnchor>();
     	
-    	if (bundle.getTrustBundleAnchors() != null)
+    	if (anchors != null)
     	{
-    		for (org.nhindirect.config.store.TrustBundleAnchor anchor : bundle.getTrustBundleAnchors())
+    		for (org.nhindirect.config.store.TrustBundleAnchor anchor : anchors)
     		{
     			final TrustBundleAnchor retAnchor = new TrustBundleAnchor();
     			retAnchor.setAnchorData(anchor.getData());
     			retAnchor.setThumbprint(anchor.getThumbprint());
     			retAnchor.setId(anchor.getId());
  
-    	    	retAnchor.setValidEndDate(anchor.getValidEndDate());
-    	    	retAnchor.setValidStartDate(anchor.getValidStartDate());
+    	    	retAnchor.setValidEndDate(calendarFromLocalDateTime(anchor.getValidEndDate()));
+    	    	retAnchor.setValidStartDate(calendarFromLocalDateTime(anchor.getValidStartDate()));
     	    	
     	    	trustAnchors.add(retAnchor);
     		}
@@ -341,20 +368,20 @@ public class EntityModelConversion
     	retVal.setBundleName(bundle.getBundleName());
     	retVal.setBundleURL(bundle.getBundleURL());
     	retVal.setCheckSum(bundle.getCheckSum());
-    	retVal.setCreateTime(bundle.getCreateTime());
+    	retVal.setCreateTime(calendarFromLocalDateTime(bundle.getCreateTime()));
     	retVal.setId(bundle.getId());
-    	retVal.setLastRefreshAttempt(bundle.getLastRefreshAttempt());
-    	if (bundle.getLastRefreshError() != null)
-    		retVal.setLastRefreshError(BundleRefreshError.valueOf(bundle.getLastRefreshError().toString()));
+    	retVal.setLastRefreshAttempt(calendarFromLocalDateTime(bundle.getLastRefreshAttempt()));
+    	if (bundle.getLastRefreshError() >= 0)
+    		retVal.setLastRefreshError(BundleRefreshError.values()[bundle.getLastRefreshError()]);
     	
-    	retVal.setLastSuccessfulRefresh(bundle.getLastSuccessfulRefresh());
+    	retVal.setLastSuccessfulRefresh(calendarFromLocalDateTime(bundle.getLastSuccessfulRefresh()));
     	retVal.setRefreshInterval(bundle.getRefreshInterval());
     	retVal.setSigningCertificateData(bundle.getSigningCertificateData());
     	retVal.setTrustBundleAnchors(trustAnchors);
     	return retVal;
     }  
     
-    public static org.nhindirect.config.store.TrustBundle toEntityTrustBundle(TrustBundle bundle)
+    public static Map.Entry<org.nhindirect.config.store.TrustBundle, Collection<org.nhindirect.config.store.TrustBundleAnchor>> toEntityTrustBundle(TrustBundle bundle)
     {
     	if (bundle == null)
     		return null;
@@ -378,7 +405,7 @@ public class EntityModelConversion
 				}
     			// the entity object sets all other attributes based on the cert data,
     			// no need to explicitly set it here
-    	    	retAnchor.setTrustBundle(retVal);
+    	    	retAnchor.setTrustBundleId(retVal.getId());
     	    	
     	    	trustAnchors.add(retAnchor);
     		}
@@ -392,13 +419,18 @@ public class EntityModelConversion
     	else
     		retVal.setCheckSum(bundle.getCheckSum());
     	
-    	retVal.setCreateTime((bundle.getCreateTime() != null) ? bundle.getCreateTime() : Calendar.getInstance());
-    	retVal.setId(bundle.getId());
-    	retVal.setLastRefreshAttempt(bundle.getLastRefreshAttempt());
-    	if (bundle.getLastRefreshError() != null)
-    		retVal.setLastRefreshError(org.nhindirect.config.store.BundleRefreshError.valueOf(bundle.getLastRefreshError().toString()));
+    	retVal.setCreateTime((bundle.getCreateTime() != null) ? 
+    			localDateTimeFromCalendar(bundle.getCreateTime()) : LocalDateTime.now());
     	
-    	retVal.setLastSuccessfulRefresh(bundle.getLastSuccessfulRefresh());
+    	if (bundle.getId() >= 0)
+    		retVal.setId(bundle.getId());
+    	
+    	retVal.setLastRefreshAttempt(localDateTimeFromCalendar(bundle.getLastRefreshAttempt()));
+    	
+    	if (bundle.getLastRefreshError() != null)
+    		retVal.setLastRefreshError(org.nhindirect.config.store.BundleRefreshError.valueOf(bundle.getLastRefreshError().toString()).ordinal());
+    	
+    	retVal.setLastSuccessfulRefresh(localDateTimeFromCalendar(bundle.getLastSuccessfulRefresh()));
     	retVal.setRefreshInterval(bundle.getRefreshInterval());
     	if (bundle.getSigningCertificateData() != null)
     	{
@@ -412,8 +444,8 @@ public class EntityModelConversion
     				throw new CertificateConversionException(e);
 				}
     	}
-    		retVal.setTrustBundleAnchors(trustAnchors);
-    	return retVal;
+ 
+    	return Maps.immutableEntry(retVal, trustAnchors);
     }   
     
     public static CertPolicy toModelCertPolicy(org.nhindirect.config.store.CertPolicy policy)
@@ -424,9 +456,9 @@ public class EntityModelConversion
     	final CertPolicy retVal = new CertPolicy();
     	
     	retVal.setPolicyName(policy.getPolicyName());
-    	retVal.setCreateTime(policy.getCreateTime());
-    	if (policy.getLexicon() != null)
-    		retVal.setLexicon(PolicyLexicon.valueOf(policy.getLexicon().toString()));
+    	retVal.setCreateTime(calendarFromLocalDateTime(policy.getCreateTime()));
+    	if (policy.getLexicon() >= 0)
+    		retVal.setLexicon(PolicyLexicon.values()[policy.getLexicon()]);
     	retVal.setPolicyData(policy.getPolicyData());
     	
     	return retVal;
@@ -440,15 +472,16 @@ public class EntityModelConversion
     	final org.nhindirect.config.store.CertPolicy retVal = new org.nhindirect.config.store.CertPolicy();
     	
     	retVal.setPolicyName(policy.getPolicyName());
-    	retVal.setCreateTime((policy.getCreateTime() != null) ? policy.getCreateTime() : Calendar.getInstance());
+    	retVal.setCreateTime((policy.getCreateTime() != null) ? 
+    			localDateTimeFromCalendar(policy.getCreateTime()) : LocalDateTime.now());
     	if (policy.getLexicon() != null)
-    		retVal.setLexicon(PolicyLexicon.valueOf(policy.getLexicon().toString()));
+    		retVal.setLexicon(PolicyLexicon.valueOf(policy.getLexicon().toString()).ordinal());
     	retVal.setPolicyData(policy.getPolicyData());
     	
     	return retVal;
     }  
     
-    public static CertPolicyGroup toModelCertPolicyGroup(org.nhindirect.config.store.CertPolicyGroup group)
+    public static CertPolicyGroup toModelCertPolicyGroup(org.nhindirect.config.store.CertPolicyGroup group, Map<CertPolicyGroupReltn, org.nhindirect.config.store.CertPolicy> polUseMap)
     {
     	if (group == null)
     		return null;
@@ -457,15 +490,17 @@ public class EntityModelConversion
     	
     	final Collection<CertPolicyGroupUse> uses = new ArrayList<CertPolicyGroupUse>();
     	
-    	if (group.getCertPolicyGroupReltn() != null)
+    	if (!polUseMap.isEmpty())
     	{
-    		for (org.nhindirect.config.store.CertPolicyGroupReltn reltn : group.getCertPolicyGroupReltn())
+    		for (Map.Entry<org.nhindirect.config.store.CertPolicyGroupReltn, org.nhindirect.config.store.CertPolicy> reltnEntry : polUseMap.entrySet())
     		{
     			final CertPolicyGroupUse use = new CertPolicyGroupUse();
     			
-    			use.setPolicy(toModelCertPolicy(reltn.getCertPolicy()));
-    			if (reltn.getPolicyUse() != null)
-    				use.setPolicyUse(CertPolicyUse.valueOf(reltn.getPolicyUse().toString()));
+    			final CertPolicyGroupReltn reltn = reltnEntry.getKey();
+    			
+    			use.setPolicy(toModelCertPolicy(reltnEntry.getValue()));
+    			if (reltn.getPolicyUse() >= 0)
+    				use.setPolicyUse(CertPolicyUse.values()[reltn.getPolicyUse()]);
     			use.setIncoming(reltn.isIncoming());
     			use.setOutgoing(reltn.isOutgoing());
 
@@ -474,7 +509,7 @@ public class EntityModelConversion
     	}
     	
     	retVal.setPolicyGroupName(group.getPolicyGroupName());
-    	retVal.setCreateTime(group.getCreateTime());
+    	retVal.setCreateTime(calendarFromLocalDateTime(group.getCreateTime()));
     	retVal.setPolicies(uses);
     	   	
     	return retVal;
@@ -487,45 +522,45 @@ public class EntityModelConversion
     	
     	final org.nhindirect.config.store.CertPolicyGroup retVal = new org.nhindirect.config.store.CertPolicyGroup();
     	
-    	final Collection<org.nhindirect.config.store.CertPolicyGroupReltn> reltns = new ArrayList<org.nhindirect.config.store.CertPolicyGroupReltn>();
-    	
-    	if (group.getPolicies() != null)
-    	{
-    		for (CertPolicyGroupUse use : group.getPolicies())
-    		{
-    			org.nhindirect.config.store.CertPolicyGroupReltn reltn = new org.nhindirect.config.store.CertPolicyGroupReltn();
-
-    			reltn.setCertPolicy(toEntityCertPolicy(use.getPolicy()));
-    			reltn.setCertPolicyGroup(retVal);
-    			reltn.setIncoming(use.isIncoming());
-    			reltn.setOutgoing(use.isOutgoing());
-    			
-    			if (use.getPolicyUse() != null)
-    				reltn.setPolicyUse(org.nhindirect.config.store.CertPolicyUse.valueOf(use.getPolicyUse().toString()));
-
-    			reltns.add(reltn);
-    		}
-    	}
-    	
     	retVal.setPolicyGroupName(group.getPolicyGroupName());
-    	retVal.setCreateTime((group.getCreateTime() != null) ? group.getCreateTime() : Calendar.getInstance());
+    	retVal.setCreateTime((group.getCreateTime() != null) ? localDateTimeFromCalendar(group.getCreateTime()) : LocalDateTime.now());
     	
-    	retVal.setCertPolicyGroupReltn(reltns);
     	   	
     	return retVal;
     }       
     
-    public static CertPolicyGroupDomainReltn toModelCertPolicyGroupDomainReltn(org.nhindirect.config.store.CertPolicyGroupDomainReltn reltn)
-    {
-    	if (reltn == null)
-    		return null;
-    	
+    public static CertPolicyGroupDomainReltn toModelCertPolicyGroupDomainReltn(Long id, org.nhindirect.config.store.Domain domain, 
+    		org.nhindirect.config.store.CertPolicyGroup group, Map<CertPolicyGroupReltn, org.nhindirect.config.store.CertPolicy> polUseMap)
+    {    	
     	final CertPolicyGroupDomainReltn retVal = new CertPolicyGroupDomainReltn();
     	
-    	retVal.setId(reltn.getId());
-    	retVal.setPolicyGroup(toModelCertPolicyGroup(reltn.getCertPolicyGroup()));
-    	retVal.setDomain(toModelDomain(reltn.getDomain()));
+    	retVal.setId(id);
+    	retVal.setPolicyGroup(toModelCertPolicyGroup(group, polUseMap));
+    	retVal.setDomain(toModelDomain(domain, Collections.emptyList()));
 
     	return retVal;
-    }   
+    }  
+    
+    public static Calendar calendarFromLocalDateTime(LocalDateTime time)
+    {
+    	if (time == null)
+    		return null;
+    	
+    	final Date date = Date.from(time.atZone(ZoneId.systemDefault()).toInstant());
+    	
+        final Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        
+        return calendar;
+    }
+    
+    public static LocalDateTime localDateTimeFromCalendar(Calendar time)
+    {
+        if (time == null) 
+            return null;
+        
+        TimeZone tz = time.getTimeZone();
+        ZoneId zid = tz == null ? ZoneId.systemDefault() : tz.toZoneId();
+        return LocalDateTime.ofInstant(time.toInstant(), zid);
+    }
 }

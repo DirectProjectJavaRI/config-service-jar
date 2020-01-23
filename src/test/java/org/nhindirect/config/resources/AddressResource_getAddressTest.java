@@ -52,8 +52,8 @@ public class AddressResource_getAddressTest  extends SpringBaseTest
 			{
 				final org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
 				domain.setDomainName(domainName);
-				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED);
-				domainRepo.save(domain);
+				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED.ordinal());
+				domainRepo.save(domain).block();
 				
 				if (addAddress != null)
 					addAddress.setDomainName(domainName);

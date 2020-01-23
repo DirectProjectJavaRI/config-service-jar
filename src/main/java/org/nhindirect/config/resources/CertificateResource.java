@@ -115,16 +115,16 @@ public class CertificateResource extends ProtectedResource
     public ResponseEntity<Flux<Certificate>> getCertificatesByOwner(@PathVariable("owner") String owner)
     {  	    	
     	try
-    	{
-    		final List<org.nhindirect.config.store.Certificate> retCertificates = 
-    			(StringUtils.isEmpty(owner)) ? certRepo.findAll() : certRepo.findByOwnerIgnoreCase(owner);	
- 	
-    		final Flux<Certificate> retVal = Flux.fromStream(retCertificates.stream().
-    		    			map(cert -> 
+    	{ 	
+    		final Flux<org.nhindirect.config.store.Certificate> lookupFlux = 
+    				(StringUtils.isEmpty(owner)) ? certRepo.findAll() : certRepo.findByOwnerIgnoreCase(owner);	
+    		
+    		final Flux<Certificate> retVal = lookupFlux
+    		    			.map(cert -> 
     		    			{
     		    				CertificateUtils.stripP12Protection(cert, this.kspMgr);
     		    				return EntityModelConversion.toModelCertificate(cert);	
-    		    			}));  
+    		    			});  
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
     	}
@@ -148,20 +148,22 @@ public class CertificateResource extends ProtectedResource
     {
     	org.nhindirect.config.store.Certificate retCertificate = null;
     	
+    	owner = owner.trim();
+    	
     	List<org.nhindirect.config.store.Certificate> retCertificates = null;
     	
     	try
     	{
     		if (StringUtils.isEmpty(owner) && StringUtils.isEmpty(thumbprint))
-    			retCertificates = certRepo.findAll();
+    			retCertificates = certRepo.findAll().collectList().block();
             else if (!StringUtils.isEmpty(owner) && StringUtils.isEmpty(thumbprint))
-            	retCertificates = certRepo.findByOwnerIgnoreCase(owner);
+            	retCertificates = certRepo.findByOwnerIgnoreCase(owner).collectList().block();
             else if (StringUtils.isEmpty(owner) && !StringUtils.isEmpty(thumbprint))
-            	retCertificates = certRepo.findByThumbprint(thumbprint);  		
+            	retCertificates = certRepo.findByThumbprint(thumbprint).collectList().block();		
             else
             {
             	retCertificates = new ArrayList<>();
-            	List<org.nhindirect.config.store.Certificate> potentialCerts = certRepo.findByThumbprint(thumbprint);
+            	List<org.nhindirect.config.store.Certificate> potentialCerts = certRepo.findByThumbprint(thumbprint).collectList().block();
 
             	if (!potentialCerts.isEmpty())
             	{
@@ -220,7 +222,7 @@ public class CertificateResource extends ProtectedResource
 
     	try
     	{    		
-    		if (certRepo.findByOwnerIgnoreCaseAndThumbprint(cert.getOwner(), Thumbprint.toThumbprint(cont.getCert()).toString()) != null)
+    		if (certRepo.findByOwnerIgnoreCaseAndThumbprint(cert.getOwner(), Thumbprint.toThumbprint(cont.getCert()).toString()).block() != null)
     			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
     	}
     	catch (Exception e)
@@ -233,7 +235,9 @@ public class CertificateResource extends ProtectedResource
     	{	
 			org.nhindirect.config.store.Certificate entCert = EntityModelConversion.toEntityCertificate(cert);
 			entCert = CertificateUtils.applyCertRepositoryAttributes(entCert, kspMgr);
-    		certRepo.save(entCert);
+			entCert.setId(null);
+			
+    		certRepo.save(entCert).block();
     		
     		final URI uri = new UriTemplate("/{certificate}").expand("certificate/" + entCert.getOwner());
     		
@@ -264,7 +268,7 @@ public class CertificateResource extends ProtectedResource
     		for (String id : idArray)
     			idList.add(Long.parseLong(id));
     		
-    		certRepo.deleteByIdIn(idList);
+    		certRepo.deleteByIdIn(idList).block();
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -285,7 +289,7 @@ public class CertificateResource extends ProtectedResource
     {
     	try
     	{
-    		certRepo.deleteByOwnerIgnoreCase(owner);
+    		certRepo.deleteByOwnerIgnoreCase(owner).block();
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}

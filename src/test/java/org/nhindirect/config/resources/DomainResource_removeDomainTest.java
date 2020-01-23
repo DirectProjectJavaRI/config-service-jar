@@ -24,6 +24,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 
+import reactor.core.publisher.Mono;
+
 
 public class DomainResource_removeDomainTest extends SpringBaseTest
 {   
@@ -111,7 +113,7 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				assertEquals(null,  domainRepo.findByDomainNameIgnoreCase("@test.com"));
+				assertEquals(null,  domainRepo.findByDomainNameIgnoreCase("@test.com").block());
 			}
 		}.perform();
 	}
@@ -222,7 +224,7 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 					super.setupMocks();
 
 					DomainRepository mockDAO = mock(DomainRepository.class);
-					when(mockDAO.findByDomainNameIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.Domain());
+					when(mockDAO.findByDomainNameIgnoreCase((String)any())).thenReturn(Mono.just(new org.nhindirect.config.store.Domain()));
 					doThrow(new RuntimeException()).when(mockDAO).deleteByDomainNameIgnoreCase(eq("test.com"));
 					
 					domainService.setDomainRepository(mockDAO);

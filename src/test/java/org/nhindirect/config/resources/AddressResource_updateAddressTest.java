@@ -4,11 +4,10 @@ import static org.mockito.Matchers.eq;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
+import static org.mockito.ArgumentMatchers.any;
 
 import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
@@ -22,6 +21,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
+
+import reactor.core.publisher.Mono;
 
 public class AddressResource_updateAddressTest  extends SpringBaseTest
 {
@@ -54,8 +55,8 @@ public class AddressResource_updateAddressTest  extends SpringBaseTest
 			{
 				final org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
 				domain.setDomainName(domainName);
-				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED);
-				domainRepo.save(domain);
+				domain.setStatus(org.nhindirect.config.store.EntityStatus.ENABLED.ordinal());
+				domainRepo.save(domain).block();
 				
 				if (addAddress != null)
 					addAddress.setDomainName(domainName);
@@ -506,7 +507,7 @@ public class AddressResource_updateAddressTest  extends SpringBaseTest
 					super.setupMocks();
 
 					AddressRepository mockDAO = mock(AddressRepository.class);
-					when(mockDAO.findByEmailAddressIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.Address());
+					when(mockDAO.findByEmailAddressIgnoreCase(any())).thenReturn(Mono.justOrEmpty(new org.nhindirect.config.store.Address()));
 					doThrow(new RuntimeException()).when(mockDAO).save((org.nhindirect.config.store.Address)any());
 					
 					addressService.setAddressRepository(mockDAO);

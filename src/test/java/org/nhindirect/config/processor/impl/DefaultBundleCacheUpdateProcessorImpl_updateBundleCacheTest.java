@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
@@ -17,8 +18,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
 import org.nhindirect.config.repository.TrustBundleRepository;
+import org.nhindirect.config.resources.util.EntityModelConversion;
 import org.nhindirect.config.store.ConfigurationStoreException;
 import org.nhindirect.config.store.TrustBundle;
+
+import reactor.core.publisher.Flux;
 
 public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 {
@@ -45,7 +49,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 		
 		final List<TrustBundle> bundles = Arrays.asList(bundle);
 		
-		when(repo.findAll()).thenReturn(bundles);
+		when(repo.findAll()).thenReturn(Flux.fromIterable(bundles));
 		
 		cacheUpdate.updateBundleCache();
 		
@@ -64,7 +68,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 		
 		final List<TrustBundle> bundles = Arrays.asList(bundle);
 		
-		when(repo.findAll()).thenReturn(bundles);
+		when(repo.findAll()).thenReturn(Flux.fromIterable(bundles));
 		
 		cacheUpdate.updateBundleCache();
 		
@@ -75,17 +79,19 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 	@Test
 	public void testUpdateBundleCache_updateCache_refreshIntervalNotExpired_assertBundleRefreshNotCalled() throws Exception
 	{
+		Thread.sleep(5000);
+		
 		final DefaultBundleCacheUpdateProcessorImpl cacheUpdate = new DefaultBundleCacheUpdateProcessorImpl();
 		cacheUpdate.setRepository(repo);
 		cacheUpdate.setRefreshProcessor(processor);
 		
 		final TrustBundle bundle = new TrustBundle();
-		bundle.setRefreshInterval(1000);
-		bundle.setLastSuccessfulRefresh(Calendar.getInstance(Locale.getDefault()));
+		bundle.setRefreshInterval(5000);
+		bundle.setLastSuccessfulRefresh(LocalDateTime.now());
 		
 		final List<TrustBundle> bundles = Arrays.asList(bundle);
 		
-		when(repo.findAll()).thenReturn(bundles);
+		when(repo.findAll()).thenReturn(Flux.fromIterable(bundles));
 		
 		cacheUpdate.updateBundleCache();
 		
@@ -104,11 +110,11 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 		bundle.setRefreshInterval(1000);
 		final Calendar lastSuccessRefresh = Calendar.getInstance(Locale.getDefault());
 		lastSuccessRefresh.add(Calendar.SECOND, -1200);
-		bundle.setLastSuccessfulRefresh(lastSuccessRefresh);
+		bundle.setLastSuccessfulRefresh(EntityModelConversion.localDateTimeFromCalendar(lastSuccessRefresh));
 		
 		final List<TrustBundle> bundles = Arrays.asList(bundle);
 		
-		when(repo.findAll()).thenReturn(bundles);
+		when(repo.findAll()).thenReturn(Flux.fromIterable(bundles));
 		
 		cacheUpdate.updateBundleCache();
 		
@@ -144,7 +150,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 		
 		final List<TrustBundle> bundles = Arrays.asList(bundle);
 		
-		when(repo.findAll()).thenReturn(bundles);
+		when(repo.findAll()).thenReturn(Flux.fromIterable(bundles));
 		
 		doThrow(new RuntimeException("Just Passing Through")).when(processor).refreshBundle(bundle);
 		

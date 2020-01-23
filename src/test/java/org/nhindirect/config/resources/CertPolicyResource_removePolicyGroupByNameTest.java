@@ -3,7 +3,7 @@ package org.nhindirect.config.resources;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -22,6 +22,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+
+import reactor.core.publisher.Mono;
 
 public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTest
 {
@@ -110,7 +112,7 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					assertNull(policyRepo.findByPolicyNameIgnoreCase(getPolicyGroupToDelete()));
+					assertNull(policyRepo.findByPolicyNameIgnoreCase(getPolicyGroupToDelete()).block());
 				}
 			}.perform();
 		}
@@ -223,7 +225,7 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 						super.setupMocks();
 
 						CertPolicyGroupRepository mockDAO = mock(CertPolicyGroupRepository.class);
-						when(mockDAO.findByPolicyGroupNameIgnoreCase((String)any())).thenReturn(new org.nhindirect.config.store.CertPolicyGroup());
+						when(mockDAO.findByPolicyGroupNameIgnoreCase((String)any())).thenReturn(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()));
 						doThrow(new RuntimeException()).when(mockDAO).deleteById((Long)any());
 						
 						certService.setCertPolicyGroupRepository(mockDAO);

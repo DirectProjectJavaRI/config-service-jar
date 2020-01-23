@@ -131,7 +131,7 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 			@Override
 			protected Collection<Long> getIdsToRemove()
 			{
-				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
+				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll().collectList().block();
 				
 				final Collection<Long> ids = new ArrayList<Long>();
 				for (org.nhindirect.config.store.Anchor anchor : anchors)
@@ -143,7 +143,7 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
+				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll().collectList().block();
 				assertTrue(anchors.isEmpty());
 			}
 		}.perform();
@@ -193,7 +193,7 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 			@Override
 			protected Collection<Long> getIdsToRemove()
 			{
-				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
+				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll().collectList().block();
 				
 				final Collection<Long> ids = new ArrayList<Long>();
 
@@ -205,7 +205,7 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 			@Override
 			protected void doAssertions() throws Exception
 			{
-				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll();
+				final Collection<org.nhindirect.config.store.Anchor> anchors = anchorRepo.findAll().collectList().block();
 				assertEquals(1, anchors.size());
 			}
 		}.perform();

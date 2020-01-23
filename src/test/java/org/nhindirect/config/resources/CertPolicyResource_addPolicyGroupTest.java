@@ -100,7 +100,7 @@ public class CertPolicyResource_addPolicyGroupTest extends SpringBaseTest
 				@Override
 				protected void doAssertions() throws Exception
 				{
-					final Collection<org.nhindirect.config.store.CertPolicyGroup> groups = policyGroupRepo.findAll();
+					final Collection<org.nhindirect.config.store.CertPolicyGroup> groups = policyGroupRepo.findAll().collectList().block();
 					
 					assertNotNull(groups);
 					assertEquals(2, groups.size());
