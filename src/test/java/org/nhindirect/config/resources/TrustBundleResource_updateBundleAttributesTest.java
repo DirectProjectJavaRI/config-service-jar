@@ -156,6 +156,74 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 		}	
 		
 		@Test
+		public void testUpdateBundleAttributes_noChange_assertNameChanged()  throws Exception
+		{
+			new TestPlan()
+			{
+				protected Collection<TrustBundle> bundles;
+				
+				@Override
+				protected Collection<TrustBundle> getBundlesToAdd()
+				{
+					try
+					{
+						bundles = new ArrayList<TrustBundle>();
+						
+						TrustBundle bundle = new TrustBundle();
+						bundle.setBundleName("testBundle1");
+						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
+						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						bundle.setRefreshInterval(24);
+						bundle.setSigningCertificateData(null);		
+						bundles.add(bundle);
+						
+						return bundles;
+					}
+					catch (Exception e)
+					{
+						throw new RuntimeException (e);
+					}
+				}
+				
+				@Override
+				protected TrustBundle getBundleDataToUpdate() throws Exception
+				{
+					final TrustBundle bundleData = new TrustBundle();
+					bundleData.setBundleName("testBundle1");
+					File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
+					bundleData.setBundleURL(filePrefix + fl.getAbsolutePath());	
+					bundleData.setRefreshInterval(24);
+					bundleData.setSigningCertificateData(null);	
+					
+					return bundleData;
+					
+				}
+				
+				@Override
+				protected String getBundleToUpdate()
+				{
+					return "testBundle1";
+				}
+				
+				@Override 
+				protected String getBundleUpdatedName()
+				{
+					return "testBundle1";
+				}
+				
+				protected void doAssertions(TrustBundle bundle) throws Exception
+				{
+					final TrustBundle addedBundle = this.bundles.iterator().next();
+					
+					assertEquals(getBundleUpdatedName(), bundle.getBundleName());
+					assertNull(bundle.getSigningCertificateAsX509Certificate());
+					assertEquals(addedBundle.getBundleURL(), bundle.getBundleURL());
+					assertEquals(24, bundle.getRefreshInterval());
+				}
+			}.perform();
+		}	
+		
+		@Test
 		public void testUpdateBundleAttributes_newSigningCert_assertSigningCertChanged()  throws Exception
 		{
 			new TestPlan()

@@ -62,6 +62,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriTemplate;
 
+import edu.emory.mathcs.backport.java.util.Arrays;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -555,6 +556,19 @@ public class TrustBundleResource extends ProtectedResource
     		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
     	}
     	
+    	// check to see if the bundle info is the same... if so, then exit
+    	if (entityBundle.getBundleName().equals(bundleData.getBundleName()) &&
+    		entityBundle.getBundleURL().equals(bundleData.getBundleURL()) &&
+    		entityBundle.getRefreshInterval() == bundleData.getRefreshInterval())
+    	{
+    		if (bundleData.getSigningCertificateData() == null && entityBundle.getSigningCertificateData() == null)
+    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    		
+    		else if (bundleData.getSigningCertificateData() != null && entityBundle.getSigningCertificateData() != null
+    				&& Arrays.equals(bundleData.getSigningCertificateData(), entityBundle.getSigningCertificateData()))
+    				return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
+    	}
+    
     	final String oldBundleURL = entityBundle.getBundleURL();
     	
     	// if there is a signing certificate in the request, make sure it's valid
