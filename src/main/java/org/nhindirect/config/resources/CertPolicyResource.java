@@ -474,11 +474,11 @@ public class CertPolicyResource extends ProtectedResource
     	
     	try
     	{
-    		domainReltnRepo.deleteByCertPolicyGroupId(enitityGroup.getId());
+    		domainReltnRepo.deleteByCertPolicyGroupId(enitityGroup.getId()).block();
     		
-    		polGroupReltnRepo.deleteByGroupId(enitityGroup.getId());
+    		polGroupReltnRepo.deleteByGroupId(enitityGroup.getId()).block();
     		
-    		groupRepo.deleteById(enitityGroup.getId());
+    		groupRepo.deleteById(enitityGroup.getId()).block();
     		
     		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     	}
@@ -640,7 +640,7 @@ public class CertPolicyResource extends ProtectedResource
 		try
 		{
 			polGroupReltnRepo.deleteById(foundReltn.getId()).block();
-			groupRepo.save(entityGroup);
+			groupRepo.save(entityGroup).block();
 		}
     	catch (Exception e)
     	{
