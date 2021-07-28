@@ -3,8 +3,8 @@ package org.nhindirect.config;
 import java.io.File;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.Before;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.nhindirect.config.repository.AddressRepository;
 import org.nhindirect.config.repository.AnchorRepository;
 import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
@@ -23,9 +23,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.web.reactive.function.client.WebClient;
 
-@RunWith(SpringRunner.class)
+@ExtendWith(SpringExtension.class)
 @SpringBootTest(classes = TestApplication.class, webEnvironment = WebEnvironment.DEFINED_PORT)
 @TestPropertySource("classpath:bootstrap.properties")
 public abstract class SpringBaseTest
@@ -34,6 +35,9 @@ public abstract class SpringBaseTest
 	
 	@Autowired
 	protected TestRestTemplate testRestTemplate;
+	
+	@Autowired
+	protected WebClient webClient;
 	
 	@Autowired
 	protected AddressRepository addressRepo;
@@ -74,7 +78,7 @@ public abstract class SpringBaseTest
 	@Autowired
 	protected CertPolicyGroupReltnRepository policyGroupReltn;
 	
-	@Before
+	@BeforeEach
 	public void setUp()
 	{
 		

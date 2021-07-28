@@ -1,18 +1,20 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
-import org.junit.Test;
+
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
@@ -247,148 +249,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 			}.perform();
 		}	
 		
-		@Test
-		public void testRemovePolicyUseFromGroup_nonExistantPolicyUseName_assertNotFound()  throws Exception
-		{
-			new TestPlan()
-			{
-
-				@Override
-				protected String getGroupToRemoveFrom()
-				{
-					return "Group1";
-				}
-				
-				@Override
-				protected CertPolicyGroupUse getPolicyUseToRemove()
-				{
-					final CertPolicyGroupUse use = new CertPolicyGroupUse();
-					
-					final CertPolicy policy = new CertPolicy();
-					policy.setPolicyName("bogus");
-					
-					use.setIncoming(true);
-					use.setOutgoing(true);
-					use.setPolicyUse(CertPolicyUse.TRUST);
-					use.setPolicy(policy);
-					
-					return use;
-				}
-				
-				@Override
-				protected void assertException(Exception exception) throws Exception 
-				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
-				}
-			}.perform();
-		}	
-		
-		@Test
-		public void testRemovePolicyUseFromGroup_nonMathingIncomingDirection_assertNotFound()  throws Exception
-		{
-			new TestPlan()
-			{
-
-				@Override
-				protected String getGroupToRemoveFrom()
-				{
-					return "Group1";
-				}
-				
-				@Override
-				protected CertPolicyGroupUse getPolicyUseToRemove()
-				{
-					final CertPolicyGroupUse use = new CertPolicyGroupUse();
-					
-					use.setIncoming(false);
-					use.setOutgoing(true);
-					use.setPolicyUse(CertPolicyUse.TRUST);
-					use.setPolicy(policies.iterator().next());
-					
-					return use;
-				}
-				
-				@Override
-				protected void assertException(Exception exception) throws Exception 
-				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
-				}
-			}.perform();
-		}		
-		
-		@Test
-		public void testRemovePolicyUseFromGroup_nonMathingOutgoingDirection_assertNotFound()  throws Exception
-		{
-			new TestPlan()
-			{
-
-				@Override
-				protected String getGroupToRemoveFrom()
-				{
-					return "Group1";
-				}
-				
-				@Override
-				protected CertPolicyGroupUse getPolicyUseToRemove()
-				{
-					final CertPolicyGroupUse use = new CertPolicyGroupUse();
-					
-					use.setIncoming(true);
-					use.setOutgoing(false);
-					use.setPolicyUse(CertPolicyUse.TRUST);
-					use.setPolicy(policies.iterator().next());
-					
-					return use;
-				}
-				
-				@Override
-				protected void assertException(Exception exception) throws Exception 
-				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
-				}
-			}.perform();
-		}	
-		
-		@Test
-		public void testRemovePolicyUseFromGroup_nonMathingUse_assertNotFound()  throws Exception
-		{
-			new TestPlan()
-			{
-
-				@Override
-				protected String getGroupToRemoveFrom()
-				{
-					return "Group1";
-				}
-				
-				@Override
-				protected CertPolicyGroupUse getPolicyUseToRemove()
-				{
-					final CertPolicyGroupUse use = new CertPolicyGroupUse();
-					
-					use.setIncoming(true);
-					use.setOutgoing(true);
-					use.setPolicyUse(CertPolicyUse.PUBLIC_RESOLVER);
-					use.setPolicy(policies.iterator().next());
-					
-					return use;
-				}
-				
-				@Override
-				protected void assertException(Exception exception) throws Exception 
-				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
-				}
-			}.perform();
-		}		
+			
 		
 		@Test
 		public void testRemovePolicyUseFromGroup_errorInGroupLookup_assertServiceError()  throws Exception
@@ -491,15 +352,15 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 						reltn.setIncoming(true);
 						reltn.setOutgoing(true);
 						reltn.setPolicyUse(org.nhindirect.config.store.CertPolicyUse.TRUST.ordinal());
-						reltn.setCertPolicyId(policy.getId());
+						reltn.setPolicyId(policy.getId());
 						
 						
 						final org.nhindirect.config.store.CertPolicyGroup group = new org.nhindirect.config.store.CertPolicyGroup();
-						reltn.setCertPolicyGroupId(group.getId());
+						reltn.setPolicyGroupId(group.getId());
 						group.setPolicyGroupName("Group1");
 						
 						
-						when(mockReltnDAO.findByGroupId(any())).thenReturn(Flux.fromIterable(Arrays.asList(reltn)));
+						when(mockReltnDAO.findByPolicyGroupId(any())).thenReturn(Flux.fromIterable(Arrays.asList(reltn)));
 						when(mockDAO.findByPolicyGroupNameIgnoreCase(any())).thenReturn(Mono.just(group));
 						doThrow(new RuntimeException()).when(mockDAO).save(any());
 						

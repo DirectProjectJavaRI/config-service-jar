@@ -21,10 +21,6 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.resources;
 
-import java.net.URI;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.repository.AddressRepository;
 import org.nhindirect.config.repository.DomainRepository;
@@ -32,7 +28,6 @@ import org.nhindirect.config.resources.util.EntityModelConversion;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,9 +35,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -55,10 +52,9 @@ import reactor.core.publisher.Mono;
  */
 @RestController
 @RequestMapping("address")
+@Slf4j
 public class AddressResource extends ProtectedResource
-{
-    private static final Log log = LogFactory.getLog(AddressResource.class);
-    
+{    
     /**
      * Address repository is injected by Spring
      */
@@ -103,24 +99,22 @@ public class AddressResource extends ProtectedResource
      * @param address The address to retrieve.
      */ 
     @GetMapping(value="/{address}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Mono<Address>> getAddress(@PathVariable String address)
-    {   	
-    	try
-    	{
-    		org.nhindirect.config.store.Address retAddress = addRepo.findByEmailAddressIgnoreCase(address).block();
-    		if (retAddress == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    		
-    		org.nhindirect.config.store.Domain domain = domainRepo.findById(retAddress.getDomainId()).block();
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(
-    				Mono.just(EntityModelConversion.toModelAddress(retAddress, domain.getDomainName())));
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up address.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+    public Mono<Address> getAddress(@PathVariable String address)
+    {   
+		return addRepo.findByEmailAddressIgnoreCase(address)
+			    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Address()))
+				.flatMap(addr ->
+				{
+					if (addr.getDomainId() == null)
+						return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+				
+					return domainRepo.findById(addr.getDomainId())
+							.map(domain -> EntityModelConversion.toModelAddress(addr, domain.getDomainName()))
+				   	     	.onErrorResume(e -> { 
+				   	    		log.error("Error looking up address", e);
+				   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+				   	    	});	
+				});
     }
     
     /**
@@ -130,38 +124,24 @@ public class AddressResource extends ProtectedResource
      * or a 204 status if no addresses are configured for the domain.
      */
     @GetMapping(value="domain/{domainName}", produces = MediaType.APPLICATION_JSON_VALUE)     
-    public ResponseEntity<Flux<Address>> getAddressesByDomain(@PathVariable String domainName)
+    public Flux<Address> getAddressesByDomain(@PathVariable String domainName)
     {   	
-    	// get the domain
-    	org.nhindirect.config.store.Domain domain = null;
-    	try
-    	{
-    		domain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
-    		if (domain == null)
-    		{
-    			return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
-    		}
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up existing domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}    	
-    	
-    	
-    	try
-    	{
-    		final Flux<Address> retVal = addRepo.findByDomainId(domain.getId())
-    				.map(address -> {
-    					return EntityModelConversion.toModelAddress(address, domainName);
-    				});
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up addresses.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+		return domainRepo.findByDomainNameIgnoreCase(domainName)
+			    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
+				.flatMapMany(domain ->
+				{
+					if (domain.getDomainName() == null)
+						return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+					
+					return addRepo.findByDomainId(domain.getId())
+		    				.map(address -> {
+		    					return EntityModelConversion.toModelAddress(address, domainName);
+		    				})
+		    	   	     	.onErrorResume(e -> { 
+		    	   	    		log.error("Error looking up addresses", e);
+		    	   	    		return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		    	   	    	});	
+				});
     }
     
     /**
@@ -172,53 +152,38 @@ public class AddressResource extends ProtectedResource
      * the address already exists.
      */
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)   
-    public ResponseEntity<Mono<Void>> addAddress(@RequestBody Address address) 
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<Void> addAddress(@RequestBody Address address) 
     {
-    	// make sure the domain exists
     	if (address.getDomainName() == null || address.getDomainName().isEmpty())
-    		return ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(noCache).build();
+    		return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST));
     	
-    	org.nhindirect.config.store.Domain domain;
-    	try
-    	{
-    		domain = domainRepo.findByDomainNameIgnoreCase(address.getDomainName()).block();
-	    	if (domain == null)
-	    		return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up existing domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	// check to see if it already exists
-    	try
-    	{
-    		if (addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress()).block() != null)
-    			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up existing address.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address, domain);
-    	toAdd.setId(null);
-    	
-    	try
-    	{
-    		addRepo.save(toAdd).block();
-    		final URI uri = new UriTemplate("/{address}").expand("address/" + address.getEmailAddress());
-    		
-    		return ResponseEntity.created(uri).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error adding address.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
+		return domainRepo.findByDomainNameIgnoreCase(address.getDomainName())
+			    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
+				.flatMap(domain ->
+				{
+					if (domain.getDomainName() == null)
+						return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+					
+					return addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress())
+					 .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Address()))
+					 .flatMap(addr -> 
+					 {
+						 if (addr.getDomainId() != null)
+							 return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT)); 
+						 
+						 
+					     final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address, domain);
+					     toAdd.setId(null);
+						 
+					    return  addRepo.save(toAdd)
+					    	.then()
+		    	   	     	.onErrorResume(e -> { 
+		    	   	    		log.error("Error adding address.", e);
+		    	   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		    	   	    	});	
+					 });			
+				});
     }
     
     /**
@@ -227,55 +192,39 @@ public class AddressResource extends ProtectedResource
      * @return Returns 204 if the address is updated successfully, 400 if the domain name is empty, 404 if the
      * domain or address does not exist.
      */
-    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)     
-    public ResponseEntity<Mono<Void>> updateAddress(@RequestBody Address address) 
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)    
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> updateAddress(@RequestBody Address address) 
     {
-    	// make sure the domain exists
     	if (address.getDomainName() == null || address.getDomainName().isEmpty())
-    		return ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(noCache).build();
+    		return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST));
     	
-    	org.nhindirect.config.store.Domain domain;
-    	try
-    	{
-    		domain = domainRepo.findByDomainNameIgnoreCase(address.getDomainName()).block();
-	    	if (domain == null)
-	    		return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up existing domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
     	
-    	// make sure the address exists
-    	org.nhindirect.config.store.Address existingAdd = null;
-    	try
-    	{
-    		existingAdd = addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress()).block();
-    		if (existingAdd == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up existing address.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address, domain);
-    	toAdd.setId(existingAdd.getId());
-    	
-    	try
-    	{
-    		addRepo.save(toAdd).block();
-    		
-    		return ResponseEntity.noContent().cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error updating address.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
+		return domainRepo.findByDomainNameIgnoreCase(address.getDomainName())
+			    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
+				.flatMap(domain ->
+				{
+					if (domain.getDomainName() == null)
+						return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+					
+					return addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress())
+					 .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Address()))
+					 .flatMap(addr -> 
+					 {
+						 if (addr.getDomainId() == null)
+							 return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)); 
+						 
+				    	final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address, domain);
+				    	toAdd.setId(addr.getId());
+						 
+					    return addRepo.save(toAdd)
+					    	.then()
+		    	   	     	.onErrorResume(e -> { 
+		    	   	    		log.error("Error updating address.", e);
+		    	   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		    	   	    	});	
+					 });			
+				});
     }    
     
     /**
@@ -284,32 +233,21 @@ public class AddressResource extends ProtectedResource
      * @return Returns a status of 200 if the address was removed or 404 if the address does not exists.
      */
     @DeleteMapping(value="{address}")  
-    public ResponseEntity<Mono<Void>> removedAddress(@PathVariable("address") String address)   
+    public Mono<Void> removedAddress(@PathVariable("address") String address)   
     {
-    	// make sure it exists
-    	org.nhindirect.config.store.Address addr;
-    	try
-    	{
-    		addr = addRepo.findByEmailAddressIgnoreCase(address).block();
-    		if (addr == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up existing address.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+		return addRepo.findByEmailAddressIgnoreCase(address)
+				 .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Address()))
+				 .flatMap(addr -> 
+				 {
+					 if (addr.getDomainId() == null)
+						 return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)); 
     	
-    	try
-    	{    
-    		addRepo.deleteById(addr.getId()).block();
-
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error deleting address.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}    	
+					 return addRepo.deleteById(addr.getId())
+						.then()
+	    	   	     	.onErrorResume(e -> { 
+	    	   	    		log.error("Error deleting address.", e);
+	    	   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+	    	   	    	});			 
+				 }); 	
     }
 }

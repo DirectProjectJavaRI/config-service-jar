@@ -1,15 +1,16 @@
 package org.nhindirect.config.resources;
  
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
@@ -25,6 +26,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 
 public class CertPolicyResource_getPolicyGroupDomainReltnsTest extends SpringBaseTest
@@ -88,15 +90,11 @@ public class CertPolicyResource_getPolicyGroupDomainReltnsTest extends SpringBas
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
-				final ResponseEntity<Collection<CertPolicyGroupDomainReltn>> getReltns = testRestTemplate.exchange("/certpolicy/groups/domain", HttpMethod.GET, null, 
-						new ParameterizedTypeReference<Collection<CertPolicyGroupDomainReltn>>() {});
+				final Collection<CertPolicyGroupDomainReltn> getReltns = webClient.get()
+						.uri("/certpolicy/groups/domain")
+						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<CertPolicyGroupDomainReltn>>() {}).block();
 
-				if (getReltns.getStatusCodeValue() == 404 || getReltns.getStatusCodeValue() == 204)
-					doAssertions(new ArrayList<>());
-				else if (getReltns.getStatusCodeValue() != 200)
-					throw new HttpClientErrorException(getReltns.getStatusCode());
-				else
-					doAssertions(getReltns.getBody());					
+				doAssertions(getReltns);					
 				
 			}
 				
@@ -282,8 +280,8 @@ public class CertPolicyResource_getPolicyGroupDomainReltnsTest extends SpringBas
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();

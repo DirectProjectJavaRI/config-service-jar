@@ -8,8 +8,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.junit.Test;
 
 public class TestUtils 
 {
@@ -35,22 +33,17 @@ public class TestUtils
 		return fromFile(signerBasePath, authorityFileName);
 	}		
 	
-	@SuppressWarnings("deprecation")
 	protected static final X509Certificate fromFile(String base, String file) throws Exception
 	{
 		File fl = new File(base + file);
-		
-		InputStream data = null;
 
-		try
+		try (final InputStream data = FileUtils.openInputStream(fl))
 		{
-			data = FileUtils.openInputStream(fl);
 			X509Certificate retVal = (X509Certificate)CertificateFactory.getInstance("X.509").generateCertificate(data);
 			return retVal;
 		}
 		finally
 		{
-			IOUtils.closeQuietly(data);
 		}
 	}
 	
@@ -68,10 +61,4 @@ public class TestUtils
             throw new RuntimeException("Failed to encode value: " + val, e);
         }
     }
-    
-	@Test
-	public void testDummy()
-	{
-		
-	}
 }

@@ -1,18 +1,18 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 
-
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
@@ -24,6 +24,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class CertPolicyResource_getPoliciesTest extends SpringBaseTest
 {
@@ -60,16 +61,11 @@ public class CertPolicyResource_getPoliciesTest extends SpringBaseTest
 					});						
 				}
 				
+				final Collection<CertPolicy> pols = webClient.get()
+						.uri("certpolicy/")
+						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<CertPolicy>>() {}).block();
 
-				final ResponseEntity<Collection<CertPolicy>> getPolicies = testRestTemplate.exchange("/certpolicy", HttpMethod.GET, null, 
-						new ParameterizedTypeReference<Collection<CertPolicy>>() {});
-
-				if (getPolicies.getStatusCodeValue() == 404 || getPolicies.getStatusCodeValue() == 204)
-					doAssertions(new ArrayList<>());
-				else if (getPolicies.getStatusCodeValue() != 200)
-					throw new HttpClientErrorException(getPolicies.getStatusCode());
-				else
-					doAssertions(getPolicies.getBody());				
+				doAssertions(pols);				
 			}
 				
 			protected void doAssertions(Collection<CertPolicy> policies) throws Exception
@@ -210,8 +206,8 @@ public class CertPolicyResource_getPoliciesTest extends SpringBaseTest
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();

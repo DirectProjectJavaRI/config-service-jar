@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.nhind</groupId>
 	<artifactId>config-service-jar</artifactId>
-	<version>7.1-SNAPSHOT</version>
+	<version>8.0.0-SNAPSHOT</version>
 	<packaging>jar</packaging>
 	<name>NHIN Direct Java RI config service jar</name>
     <description>NHIN Direct Java RI config service jar.</description>	
@@ -13,13 +13,14 @@
 		<connection>scm:git:https://github.com/DirectProjectJavaRI/config-service-jar.git</connection>
 	</scm>
     <prerequisites>
-        <maven>3.0.0</maven>
+        <maven>3.5.0</maven>
     </prerequisites>  	
-	<parent>
+   <parent>
 	   <groupId>org.springframework.boot</groupId>
 	   <artifactId>spring-boot-dependencies</artifactId>
-	   <version>2.2.9.RELEASE</version>
-	</parent>	
+	   <version>2.5.2</version>
+	   <relativePath />
+   </parent>
     <developers>
         <developer>
             <name>Pat Pyette</name>
@@ -43,97 +44,42 @@
           <name>New BSD License</name>
           <url>http://nhindirect.org/BSDLicense</url>
        </license>
-    </licenses>
-	<repositories>
-		<repository>
-			<id>spring-milestones</id>
-			<name>Spring Milestones</name>
-			<url>https://repo.spring.io/milestone</url>
-		</repository>    		
-	</repositories>     
+    </licenses>    
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<camel.version>2.22.0</camel.version>
+		<commons-net.version>3.8.0</commons-net.version>
+		<bcprov-jdk15on.version>1.68</bcprov-jdk15on.version>
 	</properties>   	
 	<dependencies>
 		<dependency>
 		    <groupId>org.springframework.boot</groupId>
 		    <artifactId>spring-boot-starter-webflux</artifactId>
-		</dependency>	
-	    <dependency>
-	        <groupId>org.springframework.boot</groupId>
-	        <artifactId>spring-boot-starter-tomcat</artifactId>
-	    </dependency>			
-		<dependency>
-		    <groupId>org.flywaydb</groupId>
-		    <artifactId>flyway-core</artifactId>
-		    <version>6.1.4</version>
-		</dependency>				 			
-		<dependency>
-		    <groupId>com.fasterxml.jackson.core</groupId>
-		    <artifactId>jackson-databind</artifactId>
-		</dependency>					
+		</dependency>								 							
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>config-store</artifactId>
-			<version>7.0</version>
+			<version>8.0.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>config-model</artifactId>
-			<version>7.0</version>
+			<version>8.0.0-SNAPSHOT</version>
 		</dependency>		
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>direct-common</artifactId>
-			<version>7.0</version>	
-		</dependency>	
-		<dependency>
-			<groupId>com.google.guava</groupId>
-			<artifactId>guava</artifactId>
-			<version>28.2-jre</version>	
-		</dependency>										
-	      <dependency>
-	        <groupId>org.apache.camel</groupId>
-	        <artifactId>camel-core</artifactId>
-	        <version>${camel.version}</version>
-	      </dependency>
-	      <dependency>
-	        <groupId>org.apache.camel</groupId>
-	        <artifactId>camel-spring</artifactId>
-	        <version>${camel.version}</version>	        
-	      </dependency>
-	      <dependency>
-	        <groupId>org.apache.camel</groupId>
-	        <artifactId>camel-mina</artifactId>
-	        <version>${camel.version}</version>
-	      </dependency>   
+			<version>8.0.0-SNAPSHOT</version>	
+		</dependency>											  
 	      <dependency>
 			<groupId>commons-net</groupId>
 			<artifactId>commons-net</artifactId>
-			<version>3.6</version>
+			<version>${commons-net.version}</version>
 		  </dependency>	
 		  <dependency>
 		    <groupId>org.bouncycastle</groupId>
 		    <artifactId>bcprov-jdk15on</artifactId>
-		    <version>1.64</version>    
-		  </dependency> 	   
-	      <dependency>
-	        <groupId>org.apache.camel</groupId>
-	        <artifactId>camel-test</artifactId>
-	        <version>${camel.version}</version>
-            <scope>test</scope>	        
-	     </dependency>	          	    
-		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<scope>test</scope>
-		</dependency>
-        <dependency>
-          <groupId>org.mockito</groupId>
-          <artifactId>mockito-core</artifactId>
-          <scope>test</scope>
-        </dependency>	
+		    <version>${bcprov-jdk15on.version}</version>    
+		  </dependency> 	             	    	
 		<dependency>
 		    <groupId>com.h2database</groupId>
 		    <artifactId>h2</artifactId>
@@ -143,30 +89,12 @@
 		    <groupId>org.springframework.boot</groupId>
 		    <artifactId>spring-boot-starter-test</artifactId>
 		    <scope>test</scope>
-		</dependency>			
-		<dependency>
-		    <groupId>org.apache.camel</groupId>
-		    <artifactId>camel-spring-boot-starter</artifactId>
-		    <version>2.22.0</version>
-		    <scope>test</scope>		    
-		</dependency>	
-		<dependency>
-		    <groupId>com.h2database</groupId>
-		    <artifactId>h2</artifactId>
-		    <scope>test</scope>
-		</dependency>	
-	    <dependency>
-	      <groupId>org.springframework.boot.experimental</groupId>
-	      <artifactId>spring-boot-starter-r2dbc-h2</artifactId>
-	      <version>0.1.0.M1</version>
-	      <scope>test</scope>
-	    </dependency>	
+		</dependency>				
 	    <dependency>
 	       <groupId>io.r2dbc</groupId>
 	       <artifactId>r2dbc-h2</artifactId>
-	       <version>0.8.1.RELEASE</version>
 	       <scope>test</scope>
-	     </dependency>									        	 	            		
+	    </dependency>									        	 	            		
 	</dependencies>
 	<build>
 		<plugins>
@@ -229,9 +157,8 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>2.9.1</version>
 				<configuration>
-				    <additionalparam>-Xdoclint:none</additionalparam>
+				    <additionalJOption>-Xdoclint:none</additionalJOption>
 					<charset>UTF-8</charset>
 					<docencoding>UTF-8</docencoding>
 					<source>1.8</source>
@@ -259,6 +186,7 @@
                     </goals>
                  </execution>
                </executions>
+               <version>3.0.1</version>
             </plugin>		
 		</plugins>			
 	</build>
@@ -267,14 +195,12 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-project-info-reports-plugin</artifactId>
-				<version>2.9</version>
 			</plugin>  
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>2.9.1</version>
 				<configuration>
-				    <additionalparam>-Xdoclint:none</additionalparam>
+				    <additionalJOption>-Xdoclint:none</additionalJOption>
 					<charset>UTF-8</charset>
 					<docencoding>UTF-8</docencoding>
 					<docfilessubdirs>true</docfilessubdirs>
@@ -298,6 +224,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jxr-plugin</artifactId>
+				<version>3.1.1</version>
 			</plugin>
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>

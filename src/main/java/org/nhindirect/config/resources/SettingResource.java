@@ -21,30 +21,25 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.resources;
 
-import java.net.URI;
-import java.util.Arrays;
-import java.util.Collection;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.model.Setting;
 import org.nhindirect.config.repository.SettingRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
 
 /**
  * Resource for managing settings resources in the configuration service.
@@ -55,10 +50,9 @@ import reactor.core.publisher.Mono;
  */
 @RestController
 @RequestMapping("setting")
+@Slf4j
 public class SettingResource extends ProtectedResource
 {	
-    private static final Log log = LogFactory.getLog(SettingResource.class);
-   
     /**
      * Settings repository is injected by Spring
      */
@@ -87,22 +81,14 @@ public class SettingResource extends ProtectedResource
      * @return A JSON representation of a collection of all settings in the system.  Returns a status of 204 if no settings exist.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Flux<Setting>> getAllSettings()
+    public Flux<Setting> getAllSettings()
     {
-    	try
-    	{
-    		final Flux<Setting> retVal = settingRepo.findAll()
-    		    	.map(setting -> {	    		
-    		    		return EntityModelConversion.toModelSetting(setting);
-    		    	});   
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up settings.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+		return settingRepo.findAll()
+		    .map(setting -> EntityModelConversion.toModelSetting(setting))
+   	     	.onErrorResume(e -> { 
+   	    		log.error("Error looking up settings.", e);
+   	    		return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+   	    	});    	
     }
     
     /**
@@ -111,23 +97,22 @@ public class SettingResource extends ProtectedResource
      * @return A JSON representation of the setting.  Returns a status of 404 if a setting with the given name does not exist.
      */
     @GetMapping(value="{name}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Mono<Setting>> getSettingByName(@PathVariable("name") String name)
+    public Mono<Setting> getSettingByName(@PathVariable("name") String name)
     {    	
-    	try
-    	{
-    		final Collection<org.nhindirect.config.store.Setting> retSettings = settingRepo.findByNameIgnoreCaseIn(Arrays.asList(name.toUpperCase())).collectList().block();
-    		if (retSettings.isEmpty())
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    		
-    		final Setting modelSetting = EntityModelConversion.toModelSetting(retSettings.iterator().next());
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(modelSetting)); 	
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up setting.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+    	return settingRepo.findByNameIgnoreCase(name.toUpperCase())
+    		.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Setting()))
+    		.flatMap(setting -> 
+    		{
+    			if (setting.getName() == null)
+    				return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    			
+    			return Mono.just(EntityModelConversion.toModelSetting(setting))
+		   	     	.onErrorResume(e -> { 
+		   	    		log.error("Error looking up setting.", e);
+		   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		   	    	}); 
+    		});
+ 
     }  
         
     /**
@@ -139,53 +124,41 @@ public class SettingResource extends ProtectedResource
      * already exists.
      */
     @PutMapping("{name}/{value}")  
-    public ResponseEntity<Mono<Void>> addSetting(@PathVariable("name") String name, @PathVariable("value") String value)
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<Void> addSetting(@PathVariable("name") String name, @PathVariable("value") String value)
     {    	
     	if (name == null || name.isEmpty())
     	{
     		log.error("Name cannot be null or empty");
-    		return ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(noCache).build();	
+    		return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST));
     	}
     	
        	if (value == null)
     	{
     		log.error("Value cannot be null");
-    		return ResponseEntity.status(HttpStatus.BAD_REQUEST).cacheControl(noCache).build();	
+    		return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST));
     	}
     	
-    	// check to see if it already exists
-    	try
-    	{
-    		if (settingRepo.findByNameIgnoreCase(name).block() != null)
-    			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up setting.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	try
-    	{
-    		
-    		
-    		final org.nhindirect.config.store.Setting addSetting = new org.nhindirect.config.store.Setting();
-    		addSetting.setName(name);
-    		addSetting.setValue(value);
-    		addSetting.setId(null);
-    		
-    		settingRepo.save(addSetting).block();
-    		
-
-    		final URI uri = new UriTemplate("/{name}").expand("setting/" + name);
-    		
-    		return ResponseEntity.created(uri).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error adding setting.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+       	return settingRepo.findByNameIgnoreCase(name)
+       	   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Setting()))
+       	   .flatMap(setting -> 
+       	   {
+       		   if (setting.getName() != null)
+       			 return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+       		   
+	       	   final org.nhindirect.config.store.Setting addSetting = new org.nhindirect.config.store.Setting();
+	       	   addSetting.setName(name);
+	       	   addSetting.setValue(value);
+	       	   addSetting.setId(null);
+	       		
+	       	   return settingRepo.save(addSetting)
+	       	   .then()
+	   	       .onErrorResume(e -> { 
+	   	    		log.error("Error looking up setting.", e);
+	   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+	   	       }); 
+	       	   
+       	   });
     }
     
     /**
@@ -196,35 +169,26 @@ public class SettingResource extends ProtectedResource
      * does not exist.
      */
     @PostMapping("{name}/{value}")  
-    public ResponseEntity<Mono<Void>> updateSetting(@PathVariable("name") String name, @PathVariable("value") String value)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> updateSetting(@PathVariable("name") String name, @PathVariable("value") String value)
     {    	
     	
-    	org.nhindirect.config.store.Setting retSetting = null;
-    	// make sure it exists
-    	try
-    	{
-    		retSetting = settingRepo.findByNameIgnoreCase(name).block();
-    		if (retSetting == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up setting.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	try
-    	{
-    		retSetting.setValue(value);
-    		settingRepo.save(retSetting).block();
-    		
-    		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error updating setting.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+       	return settingRepo.findByNameIgnoreCase(name)
+    	   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Setting()))
+    	   .flatMap(setting -> 
+    	   {
+       		   if (setting.getName() == null)
+       			 return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+       		   
+       		   setting.setValue(value);
+	       	   
+       		   return settingRepo.save(setting)
+	       	   .then()
+	   	       .onErrorResume(e -> { 
+	   	    		log.error("Error updating setting.", e);
+	   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+	   	       }); 
+    	   });
     } 
     
     
@@ -234,30 +198,20 @@ public class SettingResource extends ProtectedResource
      * @return Status of 200 if the setting was deleted or a status of 204 if a setting with the given name does not exist.
      */ 
     @DeleteMapping("{name}")
-    public ResponseEntity<Mono<Void>> removeSettingByName(@PathVariable("name") String name)
+    public Mono<Void> removeSettingByName(@PathVariable("name") String name)
     {
-    	// check to see if it already exists
-    	try
-    	{
-    		if (settingRepo.findByNameIgnoreCase(name).block() == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up setting.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	try
-    	{
-    		settingRepo.deleteByNameIgnoreCase(name).block();
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error removing setting by name.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+       	return settingRepo.findByNameIgnoreCase(name)
+    	   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Setting()))
+    	   .flatMap(setting -> 
+    	   {
+       		   if (setting.getName() == null)
+       			 return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+       		   
+       		   return settingRepo.deleteByNameIgnoreCase(name)
+	   	       .onErrorResume(e -> { 
+	   	    	   log.error("Error removing setting by name.", e);
+   	    			return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+   	           }); 
+    	   });
     }       
 }

@@ -1,21 +1,22 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
@@ -32,6 +33,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -105,16 +107,16 @@ public class TrustBundleResource_getTrustBundlesByDomainTest extends SpringBaseT
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 
-				final ResponseEntity<Collection<TrustBundleDomainReltn>> getBundles = testRestTemplate.exchange("/trustbundle/domains/{domain}?fetchAnchors={fetchAnchors}", 
-						HttpMethod.GET, null, new ParameterizedTypeReference<Collection<TrustBundleDomainReltn>>() {}, 
-						getDomainNameToRetrieve(), getFetchAnchors());
+				final Collection<TrustBundleDomainReltn> reltn = webClient.get()
+				        .uri(uriBuilder -> uriBuilder.path("trustbundle/domains/{domain}")
+				        	.queryParam("fetchAnchors", getFetchAnchors())
+				             .build(getDomainNameToRetrieve()))
+				        .retrieve()
+				        .bodyToMono(new ParameterizedTypeReference<Collection<TrustBundleDomainReltn>>() {})
+				        .defaultIfEmpty(new ArrayList<TrustBundleDomainReltn>() ).block();
 				
-				if (getBundles.getStatusCodeValue() == 204)
-					doAssertions(new ArrayList<TrustBundleDomainReltn>());
-				else if (getBundles.getStatusCodeValue() != 200)
-					throw new HttpClientErrorException(getBundles.getStatusCode());
-				else
-					doAssertions(getBundles.getBody());	
+
+			    doAssertions(reltn);	
 	
 			}
 				
@@ -407,8 +409,8 @@ public class TrustBundleResource_getTrustBundlesByDomainTest extends SpringBaseT
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(404, ex.getRawStatusCode());
 				}
 			}.perform();
@@ -483,8 +485,8 @@ public class TrustBundleResource_getTrustBundlesByDomainTest extends SpringBaseT
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();
@@ -506,7 +508,9 @@ public class TrustBundleResource_getTrustBundlesByDomainTest extends SpringBaseT
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						TrustBundleDomainReltnRepository mockReltnDAO = mock(TrustBundleDomainReltnRepository.class);
 						
-						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(Mono.just(new org.nhindirect.config.store.Domain()));
+						org.nhindirect.config.store.Domain dom = new org.nhindirect.config.store.Domain();
+						dom.setDomainName("Test");
+						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(Mono.just(dom));
 						doThrow(new RuntimeException()).when(mockReltnDAO).findByDomainId(any());
 						
 						bundleService.setTrustBundleDomainReltnRepository(mockReltnDAO);
@@ -561,8 +565,8 @@ public class TrustBundleResource_getTrustBundlesByDomainTest extends SpringBaseT
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();

@@ -192,7 +192,7 @@ public class EntityModelConversion
     	
     	final Anchor retVal = new Anchor();
     	
-    	retVal.setCertificateData(anchor.getData());
+    	retVal.setCertificateData(anchor.getCertificateData());
     	retVal.setCertificateId(anchor.getCertificateId());
     	retVal.setCreateTime(calendarFromLocalDateTime(anchor.getCreateTime()));
     	retVal.setId(anchor.getId());
@@ -354,7 +354,7 @@ public class EntityModelConversion
     		for (org.nhindirect.config.store.TrustBundleAnchor anchor : anchors)
     		{
     			final TrustBundleAnchor retAnchor = new TrustBundleAnchor();
-    			retAnchor.setAnchorData(anchor.getData());
+    			retAnchor.setAnchorData(anchor.getAnchorData());
     			retAnchor.setThumbprint(anchor.getThumbprint());
     			retAnchor.setId(anchor.getId());
  
@@ -433,17 +433,7 @@ public class EntityModelConversion
     	retVal.setLastSuccessfulRefresh(localDateTimeFromCalendar(bundle.getLastSuccessfulRefresh()));
     	retVal.setRefreshInterval(bundle.getRefreshInterval());
     	if (bundle.getSigningCertificateData() != null)
-    	{
-
-    			try 
-    			{
-					retVal.setSigningCertificateData(bundle.getSigningCertificateData());
-				} 
-    			catch (CertificateException e) 
-    			{
-    				throw new CertificateConversionException(e);
-				}
-    	}
+			retVal.setSigningCertificateData(bundle.getSigningCertificateData());
  
     	return Maps.immutableEntry(retVal, trustAnchors);
     }   

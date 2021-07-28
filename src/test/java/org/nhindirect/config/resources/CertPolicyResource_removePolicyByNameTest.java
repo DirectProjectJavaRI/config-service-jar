@@ -1,17 +1,17 @@
 package org.nhindirect.config.resources;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 
+import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
@@ -214,7 +214,9 @@ public class CertPolicyResource_removePolicyByNameTest extends SpringBaseTest
 
 						CertPolicyRepository mockDAO = mock(CertPolicyRepository.class);
 						
-						when(mockDAO.findByPolicyNameIgnoreCase((String)any())).thenReturn(Mono.just(new org.nhindirect.config.store.CertPolicy()));
+						final org.nhindirect.config.store.CertPolicy pol = new org.nhindirect.config.store.CertPolicy();
+						pol.setPolicyName("Test");
+						when(mockDAO.findByPolicyNameIgnoreCase((String)any())).thenReturn(Mono.just(pol));
 						doThrow(new RuntimeException()).when(mockDAO).deleteById((Long)any());
 						
 						certService.setCertPolicyRepository(mockDAO);

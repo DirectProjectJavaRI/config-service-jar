@@ -1,18 +1,19 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.TrustBundle;
@@ -22,6 +23,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 
 public class TrustBundleResource_getTrustBundleByNameTest extends SpringBaseTest
@@ -59,15 +61,14 @@ public class TrustBundleResource_getTrustBundleByNameTest extends SpringBaseTest
 					});
 				}
 
-				final ResponseEntity<TrustBundle> getBundle = testRestTemplate.getForEntity("/trustbundle/" + getBundleNameToFetch(), TrustBundle.class);
-				
-				int statusCode = getBundle.getStatusCodeValue();
-				if (statusCode == 404)
-					doAssertions(null);
-				else if (statusCode == 200)
-					doAssertions(getBundle.getBody());
-				else
-					throw new HttpClientErrorException(getBundle.getStatusCode());		
+				final TrustBundle bundle = webClient.get()
+				        .uri(uriBuilder -> uriBuilder.path("trustbundle/{bundleName}")
+				             .build(getBundleNameToFetch()))
+				        .retrieve()
+				        .bodyToMono(TrustBundle.class).block();	
+
+				doAssertions(bundle);
+
 
 			}
 				
@@ -168,11 +169,12 @@ public class TrustBundleResource_getTrustBundleByNameTest extends SpringBaseTest
 					return "testBundle2";
 				}
 				
-				protected void doAssertions(TrustBundle bundle) throws Exception
+				@Override
+				protected void assertException(Exception exception) throws Exception 
 				{
-					assertNull(bundle);
-					
-					
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(404, ex.getRawStatusCode());
 				}
 			}.perform();
 		}	
@@ -223,8 +225,8 @@ public class TrustBundleResource_getTrustBundleByNameTest extends SpringBaseTest
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();

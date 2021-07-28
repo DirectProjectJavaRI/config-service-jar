@@ -1,16 +1,17 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicyGroup;
@@ -21,6 +22,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 
 public class CertPolicyResource_getPolicyGroupsTest extends SpringBaseTest
@@ -58,15 +60,12 @@ public class CertPolicyResource_getPolicyGroupsTest extends SpringBaseTest
 					});	
 				}
 				
-				final ResponseEntity<Collection<CertPolicyGroup>> getGroups = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.GET, null, 
-						new ParameterizedTypeReference<Collection<CertPolicyGroup>>() {});
+				final Collection<CertPolicyGroup> groups = webClient.get()
+						.uri("/certpolicy/groups")
+						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<CertPolicyGroup>>() {}).block();
+				
 
-				if (getGroups.getStatusCodeValue() == 404 || getGroups.getStatusCodeValue() == 204)
-					doAssertions(new ArrayList<>());
-				else if (getGroups.getStatusCodeValue() != 200)
-					throw new HttpClientErrorException(getGroups.getStatusCode());
-				else
-					doAssertions(getGroups.getBody());			
+				doAssertions(groups);			
 			}
 				
 			protected void doAssertions(Collection<CertPolicyGroup> groups) throws Exception
@@ -189,8 +188,8 @@ public class CertPolicyResource_getPolicyGroupsTest extends SpringBaseTest
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();

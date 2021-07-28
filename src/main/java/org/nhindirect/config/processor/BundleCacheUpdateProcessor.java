@@ -21,6 +21,8 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.processor;
 
+import reactor.core.publisher.Mono;
+
 /**
  * Interface for updating the anchors within the local storage medium.  This interface is typically
  * incorporated as part of enterprise application flow such as an Apache Camel route and is executed on a
@@ -34,5 +36,5 @@ public interface BundleCacheUpdateProcessor
 	 * Updates all anchors within each bundle in the system based on the bundles's refresh interval.  If the bundles 
 	 * refresh threshold has not been met, then the bundle will not be checked for updates.  Anchors are loaded from the bundle's URL.
 	 */
-	public void updateBundleCache();
+	public Mono<Void> updateBundleCache();
 }

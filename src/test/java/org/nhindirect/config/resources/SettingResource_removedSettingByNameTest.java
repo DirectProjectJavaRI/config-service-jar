@@ -1,16 +1,17 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.Collection;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -61,11 +63,9 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
-				final ResponseEntity<?> resp = 
-						testRestTemplate.exchange("/setting/{name}", HttpMethod.DELETE, null, Void.class, getSettingNameToRemove());
-					
-				if (resp.getStatusCodeValue() != 200)
-					throw new HttpClientErrorException(resp.getStatusCode());	
+				webClient.delete()
+						.uri(uriBuilder ->  uriBuilder.path("setting/{name}").build(getSettingNameToRemove()))
+						.retrieve().bodyToMono(Void.class).block();
 
 				doAssertions();
 
@@ -119,8 +119,8 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(404, ex.getRawStatusCode());
 				}
 			}.perform();
@@ -173,8 +173,8 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();
@@ -194,6 +194,7 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 
 						SettingRepository mockDAO = mock(SettingRepository.class);
 						org.nhindirect.config.store.Setting setting = new org.nhindirect.config.store.Setting();
+						setting.setName("Test");
 						when(mockDAO.findByNameIgnoreCase(eq("setting1"))).thenReturn(Mono.just(setting));
 						doThrow(new RuntimeException()).when(mockDAO).deleteByNameIgnoreCase(eq("setting1"));
 						
@@ -229,8 +230,8 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();

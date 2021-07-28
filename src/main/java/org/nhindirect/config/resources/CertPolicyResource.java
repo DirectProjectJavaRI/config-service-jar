@@ -21,15 +21,11 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.resources;
 
-import java.net.URI;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
 import org.nhindirect.config.model.CertPolicyGroupDomainReltn;
@@ -44,7 +40,6 @@ import org.nhindirect.config.store.CertPolicyGroupReltn;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -52,11 +47,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.google.common.collect.Maps;
 
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -69,10 +66,9 @@ import reactor.core.publisher.Mono;
  */
 @RestController
 @RequestMapping("certpolicy")
+@Slf4j
 public class CertPolicyResource extends ProtectedResource
-{
-    private static final Log log = LogFactory.getLog(CertPolicyResource.class);
-	
+{	
     protected CertPolicyRepository policyRepo;
   
     protected CertPolicyGroupRepository groupRepo;
@@ -156,23 +152,16 @@ public class CertPolicyResource extends ProtectedResource
      * no certificate policies exists.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Flux<CertPolicy>> getPolicies()
+    public Flux<CertPolicy> getPolicies()
     {
-    	try
-    	{
-    		final Flux<CertPolicy> retVal = policyRepo.findAll()
-    				.map(pol -> {
-    					return EntityModelConversion.toModelCertPolicy(pol);				
-    				});
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
-    		
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up cert policies.", e);
-       		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	} 	
+		return policyRepo.findAll()
+				.map(pol -> {
+					return EntityModelConversion.toModelCertPolicy(pol);				
+				})
+		     	.onErrorResume(e -> { 
+		    		log.error("Error looking up cert policies.", e);
+		    		return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		    	});	
     }
     
     /**
@@ -181,25 +170,16 @@ public class CertPolicyResource extends ProtectedResource
      * @return A JSON representation of the certificate policy.  Returns a status of 404 if a certificate policy with the given name does not exist.
      */
     @GetMapping(value="/{policyName}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Mono<CertPolicy>> getPolicyByName(@PathVariable("policyName") String policyName)
+    public Mono<CertPolicy> getPolicyByName(@PathVariable("policyName") String policyName)
     {
-    	try
-    	{
-    		final org.nhindirect.config.store.CertPolicy retPolicy = policyRepo.findByPolicyNameIgnoreCase(policyName).block();
-    		
-    		if (retPolicy == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-
-    		final CertPolicy modelPolicy = EntityModelConversion.toModelCertPolicy(retPolicy);
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(modelPolicy));   
-    		
-    	}
-    	catch (Throwable e)
-    	{
-    		log.error("Error looking up cert policy", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}    	
+		return policyRepo.findByPolicyNameIgnoreCase(policyName)
+			.map(retPolicy -> {
+				return EntityModelConversion.toModelCertPolicy(retPolicy);
+			})
+	     	.onErrorResume(e -> { 
+	    		log.error("Error looking up cert policy.", e);
+	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+	    	});	
     }  
     
     /**
@@ -209,35 +189,25 @@ public class CertPolicyResource extends ProtectedResource
      * @return A status of 201 if the policy was added or a status of 409 if the policy already exists.
      */
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)  
-    public ResponseEntity<Mono<Void>> addPolicy(@RequestBody CertPolicy policy)
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<Void> addPolicy(@RequestBody CertPolicy policy)
     {
-    	// make sure it doesn't exist
-    	try
-    	{
-    		if (policyRepo.findByPolicyNameIgnoreCase(policy.getPolicyName()).block() != null)
-    			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up cert policy.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	try
-    	{    		
-    		final org.nhindirect.config.store.CertPolicy entityPolicy = EntityModelConversion.toEntityCertPolicy(policy);
-    		
-    		policyRepo.save(entityPolicy).block();
- 
-    		final URI uri = new UriTemplate("/{certpolicy}").expand("certpolicy/" + policy.getPolicyName());
-    		
-    		return ResponseEntity.created(uri).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error adding trust cert policy.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+    	return policyRepo.findByPolicyNameIgnoreCase(policy.getPolicyName())
+    	    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicy()))
+    	    .flatMap(pol -> 
+    	    {
+    	    	if (pol.getPolicyName() != null)
+    	    		return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+    	    	
+        		final org.nhindirect.config.store.CertPolicy entityPolicy = EntityModelConversion.toEntityCertPolicy(policy);
+        		
+        		return policyRepo.save(entityPolicy)
+        		.then()
+       	     	.onErrorResume(e -> { 
+       	    		log.error("Error looking up cert policy.", e);
+       	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+       	    	});
+    		});
     }  
     
     /**
@@ -246,39 +216,22 @@ public class CertPolicyResource extends ProtectedResource
      * @return Status of 200 if the policy was delete or 404 if a certificate policy with the given name does not exist.
      */
     @DeleteMapping(value="{policyName}") 
-    public ResponseEntity<Mono<Void>> removePolicyByName(@PathVariable("policyName") String policyName)
+    public Mono<Void> removePolicyByName(@PathVariable("policyName") String policyName)
     {
-    	// make sure it exists
-    	org.nhindirect.config.store.CertPolicy enitityPolicy = null;
-    	try
-    	{
-    		enitityPolicy = policyRepo.findByPolicyNameIgnoreCase(policyName).block();
-    		if (enitityPolicy == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up existing cert policy.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	/*
-    	 * Need to remove this policy from any possible group that it belongs to.
-    	 * 
-    	 */
-    	polGroupReltnRepo.deleteByPolicyId(enitityPolicy.getId()).block();
-    	
-    	try
-    	{
-    		policyRepo.deleteById(enitityPolicy.getId()).block();
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error deleting cert policy.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}  
+    	return policyRepo.findByPolicyNameIgnoreCase(policyName)
+        	    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicy()))
+        	    .flatMap(pol -> 
+        	    {
+        	    	if (pol.getPolicyName() == null)
+        	    		return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+        	    	
+        	    	return polGroupReltnRepo.deleteByPolicyId(pol.getId())
+        	    		.then(policyRepo.deleteById(pol.getId()))
+               	     	.onErrorResume(e -> { 
+               	    		log.error("Error deleting cert policy.", e);
+               	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+               	    	});	
+        	    });
     }    
     
     /**
@@ -288,43 +241,33 @@ public class CertPolicyResource extends ProtectedResource
      * @return Status of 204 if the certificate policy was updated or 404 if a certificate policy with the given name does not exist.
      */
     @PostMapping(value="{policyName}/policyAttributes", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Mono<Void>> updatePolicyAttributes(@PathVariable("policyName") String policyName, @RequestBody CertPolicy policyData)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> updatePolicyAttributes(@PathVariable("policyName") String policyName, @RequestBody CertPolicy policyData)
     { 
-       	// make sure the policy exists
-    	org.nhindirect.config.store.CertPolicy entityPolicy;
-    	try
-    	{
-    		entityPolicy = policyRepo.findByPolicyNameIgnoreCase(policyName).block();
-    		if (entityPolicy == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up cert policy.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-
-    	// update the policy
-    	try
-    	{
-			if (policyData.getPolicyData() != null && policyData.getPolicyData().length > 0)
-				entityPolicy.setPolicyData(policyData.getPolicyData());
-			
-			if (!StringUtils.isEmpty(policyData.getPolicyName()))
-				entityPolicy.setPolicyName(policyData.getPolicyName());
-			
-			if (policyData.getLexicon() != null)
-				entityPolicy.setLexicon(policyData.getLexicon().ordinal());
-    		
-			policyRepo.save(entityPolicy).block();
-
-    		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error updating cert policy attributes.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+    	return policyRepo.findByPolicyNameIgnoreCase(policyName)
+        	    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicy()))
+        	    .flatMap(pol -> 
+        	    {
+        	    	if (pol.getPolicyName() == null)
+        	    		return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+        	    	
+        			if (policyData.getPolicyData() != null && policyData.getPolicyData().length > 0)
+        				pol.setPolicyData(policyData.getPolicyData());
+        			
+        			if (!StringUtils.isEmpty(policyData.getPolicyName()))
+        				pol.setPolicyName(policyData.getPolicyName());
+        			
+        			if (policyData.getLexicon() != null)
+        				pol.setLexicon(policyData.getLexicon().ordinal());
+            		
+        			return policyRepo.save(pol)
+        			.then()
+           	     	.onErrorResume(e -> { 
+           	    		log.error("Error updating cert policy attributes.", e);
+           	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+           	    	});	
+        			
+        	    });
     }
     
     /**
@@ -333,38 +276,28 @@ public class CertPolicyResource extends ProtectedResource
      * groups exist.
      */
     @GetMapping(value="groups", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Flux<CertPolicyGroup>> getPolicyGroups()
+    public Flux<CertPolicyGroup> getPolicyGroups()
     {    	
-    	try
-    	{
-    		final Flux<CertPolicyGroup> retVal = groupRepo.findAll()
-    		.flatMap(group -> 
-    		{
-    			
-    		    
-    			return polGroupReltnRepo.findByGroupId(group.getId())
-    				    .flatMap(reltn ->  
-    				    {
-    				       return policyRepo.findById(reltn.getCertPolicyId())
-    				       .map(pol -> Maps.immutableEntry(reltn, pol));
-    				    
-    				    })
-    				    .collect(Collectors.toMap(
-    							Map.Entry::getKey,
-    							Map.Entry::getValue))
-    				    .map(polUseMap -> 
-    				    {
-    				    	return EntityModelConversion.toModelCertPolicyGroup(group, polUseMap);
-    				    });
-    		});
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
-    	}
-    	catch (Exception e)
-    	{
+		return groupRepo.findAll()
+		.flatMap(group -> 
+		{ 
+			return polGroupReltnRepo.findByPolicyGroupId(group.getId())
+				    .flatMap(reltn ->  
+				    {
+				       return policyRepo.findById(reltn.getPolicyId())
+				       .map(pol -> Maps.immutableEntry(reltn, pol));
+				    
+				    })
+				    .collect(Collectors.toMap(
+							Map.Entry::getKey,
+							Map.Entry::getValue))
+				    .map(polUseMap -> EntityModelConversion.toModelCertPolicyGroup(group, polUseMap));
+		})
+     	.onErrorResume(e -> { 
     		log.error("Error looking up cert policy groups.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}   	
+    		return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+    	});	
+   	
     }  
     
     /**
@@ -374,39 +307,34 @@ public class CertPolicyResource extends ProtectedResource
      * not exist.
      */
     @GetMapping(value="groups/{groupName}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Mono<CertPolicyGroup>> getPolicyGroupByName(@PathVariable("groupName") String groupName)
+    public Mono<CertPolicyGroup> getPolicyGroupByName(@PathVariable("groupName") String groupName)
     {
-    	try
-    	{
-    		final org.nhindirect.config.store.CertPolicyGroup retGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
-    		
-    		if (retGroup == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
 
-		    Map<CertPolicyGroupReltn, org.nhindirect.config.store.CertPolicy> polUseMap =  
-		    polGroupReltnRepo.findByGroupId(retGroup.getId())
-		    .flatMap(reltn ->  
-		    {
-		       return policyRepo.findById(reltn.getCertPolicyId())
-		       .map(pol -> Maps.immutableEntry(reltn, pol));
-		    
-		    })
-		    .collect(Collectors.toMap(
-					Map.Entry::getKey,
-					Map.Entry::getValue)).block();
-		   
-
-    		
-		    final CertPolicyGroup modelGroup = EntityModelConversion.toModelCertPolicyGroup(retGroup, polUseMap);
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(Mono.just(modelGroup));    
-    		
-    	}
-    	catch (Throwable e)
-    	{
-    		log.error("Error looking up cert policy group", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}     	
+		return groupRepo.findByPolicyGroupNameIgnoreCase(groupName)
+		   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()))
+		   .flatMap(group -> 
+		   {
+			   
+			   if (group.getPolicyGroupName() == null)
+				   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)); 
+			   
+			   return polGroupReltnRepo.findByPolicyGroupId(group.getId())
+				    .flatMap(reltn ->  
+				    {
+				       return policyRepo.findById(reltn.getPolicyId())
+				       .map(pol -> Maps.immutableEntry(reltn, pol));
+				    
+				    })
+				    .collect(Collectors.toMap(
+							Map.Entry::getKey,
+							Map.Entry::getValue))
+				    .map(polUseMap -> EntityModelConversion.toModelCertPolicyGroup(group, polUseMap))
+			     	.onErrorResume(e -> { 
+			    		log.error("Error looking up cert policy group.", e);
+			    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+			    	});	
+		   });
+    		    	
     }
     
     /**
@@ -417,36 +345,25 @@ public class CertPolicyResource extends ProtectedResource
      * already exists.
      */
     @PutMapping(value="groups", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Mono<Void>> addPolicyGroup(@RequestBody CertPolicyGroup group)
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<Void> addPolicyGroup(@RequestBody CertPolicyGroup group)
     {
-    	// make sure it doesn't exist
-    	try
-    	{
-    		if (groupRepo.findByPolicyGroupNameIgnoreCase(group.getPolicyGroupName()).block() != null)
-    			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();	
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up cert policy group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	try
-    	{    		
-    		final org.nhindirect.config.store.CertPolicyGroup entityGroup = EntityModelConversion.toEntityCertPolicyGroup(group);
-    		
-    		groupRepo.save(entityGroup).block();
-    		
-    		final URI uri = new UriTemplate("/{certpolicy}").expand("certpolicy/group+/" + group.getPolicyGroupName());
-    		
-    		return ResponseEntity.created(uri).cacheControl(noCache).build();
-    		
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error adding trust cert policy group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+		return groupRepo.findByPolicyGroupNameIgnoreCase(group.getPolicyGroupName())
+			   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()))
+			   .flatMap(foundGroup -> 
+			   {
+				   if (foundGroup.getPolicyGroupName() != null)
+					   return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT)); 
+				   
+				   final org.nhindirect.config.store.CertPolicyGroup entityGroup = EntityModelConversion.toEntityCertPolicyGroup(group);
+				   
+				   return groupRepo.save(entityGroup)
+				      .then()
+				      .onErrorResume(e -> { 
+				    		log.error("Error adding trust cert policy group.", e);
+				    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+				    	});	
+			   });
     }  
     
     /**
@@ -456,37 +373,24 @@ public class CertPolicyResource extends ProtectedResource
      * name does not exist.
      */
     @DeleteMapping(value="groups/{groupName}")  
-    public ResponseEntity<Mono<Void>> removePolicyGroupByName(@PathVariable("groupName") String groupName)
+    public Mono<Void> removePolicyGroupByName(@PathVariable("groupName") String groupName)
     {
-    	// make sure it exists
-    	org.nhindirect.config.store.CertPolicyGroup enitityGroup = null;
-    	try
-    	{
-    		enitityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
-    		if (enitityGroup == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up existing cert policy group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	try
-    	{
-    		domainReltnRepo.deleteByCertPolicyGroupId(enitityGroup.getId()).block();
-    		
-    		polGroupReltnRepo.deleteByGroupId(enitityGroup.getId()).block();
-    		
-    		groupRepo.deleteById(enitityGroup.getId()).block();
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error deleting cert policy group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}  
+		return groupRepo.findByPolicyGroupNameIgnoreCase(groupName)
+		   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()))
+		   .flatMap(foundGroup -> 
+		   {
+			   if (foundGroup.getPolicyGroupName() == null)
+				   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+			   
+	    		return domainReltnRepo.deleteByPolicyGroupId(foundGroup.getId())
+	    		   .then(polGroupReltnRepo.deleteByPolicyGroupId(foundGroup.getId()))
+	    		   .then(groupRepo.deleteById(foundGroup.getId()))
+			       .onErrorResume(e -> { 
+			    		log.error("Error looking up existing cert policy group.", e);
+			    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+			    	});						   
+		   });
+
     }       
     
     /**
@@ -497,36 +401,26 @@ public class CertPolicyResource extends ProtectedResource
      * does not exist.
      */ 
     @PostMapping(value="groups/{groupName}/groupAttributes", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Mono<Void>> updateGroupAttributes(@PathVariable("groupName") String groupName, @RequestBody String newGroupName)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> updateGroupAttributes(@PathVariable("groupName") String groupName, @RequestBody String newGroupName)
     { 
-       	// make sure the policy exists
-    	org.nhindirect.config.store.CertPolicyGroup entityGroup;
-    	try
-    	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
-    		if (entityGroup == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();	
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up cert policy group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-
-    	// update the group
-    	try
-    	{
-    		if (!StringUtils.isEmpty(newGroupName))
-    			entityGroup.setPolicyGroupName(newGroupName);
-    			
-    		groupRepo.save(entityGroup).block();
-    		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error updating cert policy group attributes.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+		return groupRepo.findByPolicyGroupNameIgnoreCase(groupName)
+		   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()))
+		   .flatMap(foundGroup -> 
+		   {
+			   if (foundGroup.getPolicyGroupName() == null)
+				   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+			   
+	    	   if (!StringUtils.isEmpty(newGroupName))
+	    		   foundGroup.setPolicyGroupName(newGroupName);
+	    	   
+	    	   return groupRepo.save(foundGroup)
+	    	      .then()
+			      .onErrorResume(e -> { 
+			    		log.error("Error updating cert policy group attributes.", e);
+			    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+			      });	
+		   });
     }  
     
     /**
@@ -537,55 +431,38 @@ public class CertPolicyResource extends ProtectedResource
      * policy or policy group does not exist.
      */ 
     @PostMapping(value="groups/uses/{group}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Mono<Void>> addPolicyUseToGroup(@PathVariable("group") String groupName, @RequestBody CertPolicyGroupUse use)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> addPolicyUseToGroup(@PathVariable("group") String groupName, @RequestBody CertPolicyGroupUse use)
     {
-    	// make sure the group exists
-    	org.nhindirect.config.store.CertPolicyGroup entityGroup;
-    	try
-    	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
-    		if (entityGroup == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();	
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up policy group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	// make sure the policy exists
-    	org.nhindirect.config.store.CertPolicy entityPolicy;
-    	try
-    	{
-    		entityPolicy = policyRepo.findByPolicyNameIgnoreCase(use.getPolicy().getPolicyName()).block();
-    		if (entityPolicy == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up policy.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-       	// associate the group and policy
-    	try
-    	{
-			final CertPolicyGroupReltn reltn = new CertPolicyGroupReltn();
-			reltn.setCertPolicyId(entityPolicy.getId());
-			reltn.setCertPolicyGroupId(entityGroup.getId());
-			reltn.setPolicyUse(org.nhindirect.config.store.CertPolicyUse.valueOf(use.getPolicyUse().toString()).ordinal());
-			reltn.setIncoming(use.isIncoming());
-			reltn.setOutgoing(use.isOutgoing());
+		return groupRepo.findByPolicyGroupNameIgnoreCase(groupName)
+		   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()))
+		   .flatMap(foundGroup -> 
+		   {
+			   if (foundGroup.getPolicyGroupName() == null)
+				   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+			   
+			   return policyRepo.findByPolicyNameIgnoreCase(use.getPolicy().getPolicyName())
+			      .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicy()))
+			      .flatMap(entityPolicy -> 
+			      {
+					   if (entityPolicy.getPolicyName() == null)
+						   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+					   
+						final CertPolicyGroupReltn reltn = new CertPolicyGroupReltn();
+						reltn.setPolicyId(entityPolicy.getId());
+						reltn.setPolicyGroupId(foundGroup.getId());
+						reltn.setPolicyUse(org.nhindirect.config.store.CertPolicyUse.valueOf(use.getPolicyUse().toString()).ordinal());
+						reltn.setIncoming(use.isIncoming());
+						reltn.setOutgoing(use.isOutgoing());
 
-			polGroupReltnRepo.save(reltn).block();
-			
-    		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error adding cert policy to group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+						return polGroupReltnRepo.save(reltn)
+						  .then()
+					      .onErrorResume(e -> { 
+					    		log.error("Error adding cert policy to group.", e);
+					    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+					      }); 
+			      });
+		   });
     }
     
     /**
@@ -596,59 +473,41 @@ public class CertPolicyResource extends ProtectedResource
      * or existing relationship is not found.
      */
     @PostMapping(value="groups/uses/{group}/removePolicy", consumes = MediaType.APPLICATION_JSON_VALUE)    
-    public ResponseEntity<Mono<Void>> removedPolicyUseFromGroup(@PathVariable("group") String groupName, @RequestBody CertPolicyGroupUse use)
+    public Mono<Void> removedPolicyUseFromGroup(@PathVariable("group") String groupName, @RequestBody CertPolicyGroupUse use)
     {
-    	// make sure the group exists
-    	org.nhindirect.config.store.CertPolicyGroup entityGroup;
-    	try
-    	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
-    		if (entityGroup == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up policy group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}    
-    	
-    	final org.nhindirect.config.store.CertPolicyUse entityUse = org.nhindirect.config.store.CertPolicyUse.valueOf(use.getPolicyUse().toString());
-    	
-    	org.nhindirect.config.store.CertPolicyGroupReltn foundReltn = null;
-    	
-    	final Collection<org.nhindirect.config.store.CertPolicyGroupReltn> reltns = polGroupReltnRepo.findByGroupId(entityGroup.getId()).collectList().block();  
-    	
-		if (reltns != null)
-		{
-			
-			for (org.nhindirect.config.store.CertPolicyGroupReltn groupReltn : reltns)
-			{
-				final org.nhindirect.config.store.CertPolicy certPol = policyRepo.findById(groupReltn.getCertPolicyId()).block();
-				
-				if (certPol.getPolicyName().equals(use.getPolicy().getPolicyName()) &&
-						groupReltn.isIncoming() == use.isIncoming() && groupReltn.isOutgoing() == use.isOutgoing() &&
-						groupReltn.getPolicyUse() == entityUse.ordinal())
-				{
-					foundReltn = groupReltn;
-					break;
-				}					
-			}
-		}
+		return groupRepo.findByPolicyGroupNameIgnoreCase(groupName)
+		   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()))
+		   .flatMap(foundGroup -> 
+		   {
+			   if (foundGroup.getPolicyGroupName() == null)
+				   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+			   
+		    	final org.nhindirect.config.store.CertPolicyUse entityUse = 
+		    			org.nhindirect.config.store.CertPolicyUse.valueOf(use.getPolicyUse().toString());
+
+		    	return polGroupReltnRepo.findByPolicyGroupId(foundGroup.getId())
+		    		.next()
+		    		.flatMap(reltn -> 
+		    		{
+		    			return policyRepo.findById(reltn.getPolicyId())
+		    				.flatMap(certPol -> 
+		    				{
+		    					
+		    					if (certPol.getPolicyName().equals(use.getPolicy().getPolicyName()) &&
+		    							reltn.isIncoming() == use.isIncoming() && reltn.isOutgoing() == use.isOutgoing() &&
+		    									reltn.getPolicyUse() == entityUse.ordinal())
+		    					{
+		    						return polGroupReltnRepo.deleteById(reltn.getId())
+		    						  .then(groupRepo.save(foundGroup))
+		    						  .then();
+		    					}
+		    					
+		    					return Mono.empty();
+		    				});
+
+		    		});	
+		   });
 		
-		if (foundReltn == null)
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-		try
-		{
-			polGroupReltnRepo.deleteById(foundReltn.getId()).block();
-			groupRepo.save(entityGroup).block();
-		}
-    	catch (Exception e)
-    	{
-    		log.error("Error removing cert policy from group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-		
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
     }
     
     /**
@@ -657,22 +516,20 @@ public class CertPolicyResource extends ProtectedResource
      * relationships exist.
      */
     @GetMapping(value="/groups/domain", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Flux<CertPolicyGroupDomainReltn>> getPolicyGroupDomainReltns()
+    public Flux<CertPolicyGroupDomainReltn> getPolicyGroupDomainReltns()
     {    	
-    	try
-    	{
-    		final Flux<CertPolicyGroupDomainReltn> retVal = domainReltnRepo.findAll()
+    		return domainReltnRepo.findAll()
  	    	.flatMap(reltn -> 
  	    	{
  	    		
-  	    	   final Mono<CertPolicyGroup> polGroup = groupRepo.findById(reltn.getCertPolicyGroupId())
+  	    	   final Mono<CertPolicyGroup> polGroup = groupRepo.findById(reltn.getPolicyGroupId())
    	        		.flatMap(group -> 
    	        		{
    	        			
-   	        			return polGroupReltnRepo.findByGroupId(group.getId())
+   	        			return polGroupReltnRepo.findByPolicyGroupId(group.getId())
    	        				    .flatMap(groupReltn ->  
    	        				    {
-   	        				       return policyRepo.findById(groupReltn.getCertPolicyId())
+   	        				       return policyRepo.findById(groupReltn.getPolicyId())
    	        				       .map(pol -> Maps.immutableEntry(groupReltn, pol));
    	        				    
    	        				    })
@@ -699,15 +556,11 @@ public class CertPolicyResource extends ProtectedResource
   	    	   });
   	    	   
   	    	   			   
- 	    	});   		
-    		
- 	       return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up policy group/domain relations.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}  
+ 	    	})
+		    .onErrorResume(e -> { 
+		    		log.error("Error looking up policy group/domain relations.", e);
+		    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		     }); 
     }
     
     /**
@@ -718,60 +571,43 @@ public class CertPolicyResource extends ProtectedResource
      * to the given domain.
      */
     @GetMapping(value="groups/domain/{domain}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Flux<CertPolicyGroup>> getPolicyGroupsByDomain(@PathVariable("domain") String domainName)
+    public Flux<CertPolicyGroup> getPolicyGroupsByDomain(@PathVariable("domain") String domainName)
     {
-    	// make sure the domain exists
-    	org.nhindirect.config.store.Domain entityDomain;
-    	try
-    	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
-    		if (entityDomain == null)
-    		{
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    		}
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	} 
-    	
-    	try
-    	{
+		return domainRepo.findByDomainNameIgnoreCase(domainName)
+		   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
+		   .flatMapMany(domain -> 
+		   {
+			   if (domain.getDomainName() == null)
+				   return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
 
-    		final Flux<CertPolicyGroup> retVal = domainReltnRepo.findByDomainId(entityDomain.getId())
-    	 	.flatMap(reltn -> 
-    	 	{
-    	 		return groupRepo.findById(reltn.getCertPolicyGroupId())
-        		.flatMap(group -> 
-        		{
-        			
-        			return polGroupReltnRepo.findByGroupId(group.getId())
-        				    .flatMap(groupReltn ->  
-        				    {
-        				       return policyRepo.findById(groupReltn.getCertPolicyId())
-        				       .map(pol -> Maps.immutableEntry(groupReltn, pol));
-        				    
-        				    })
-        				    .collect(Collectors.toMap(
-        							Map.Entry::getKey,
-        							Map.Entry::getValue))
-        				    .map(polUseMap -> 
-        				    {
-        				    	return EntityModelConversion.toModelCertPolicyGroup(group, polUseMap);
-        				    });
-        		});
-    	 	});   
-    		
-    	    return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
-    	    
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up cert policy groups.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	       	
+			   return domainReltnRepo.findByDomainId(domain.getId())
+		    	 	.flatMap(reltn -> 
+		    	 	{
+		    	 		return groupRepo.findById(reltn.getPolicyGroupId())
+		        		.flatMap(group -> 
+		        		{
+		        			
+		        			return polGroupReltnRepo.findByPolicyGroupId(group.getId())
+		        				    .flatMap(groupReltn ->  
+		        				    {
+		        				       return policyRepo.findById(groupReltn.getPolicyId())
+		        				       .map(pol -> Maps.immutableEntry(groupReltn, pol));
+		        				    
+		        				    })
+		        				    .collect(Collectors.toMap(
+		        							Map.Entry::getKey,
+		        							Map.Entry::getValue))
+		        				    .map(polUseMap -> 
+		        				    {
+		        				    	return EntityModelConversion.toModelCertPolicyGroup(group, polUseMap);
+		        				    });
+		        		});
+		    	 	})
+				    .onErrorResume(e -> { 
+			    		log.error("Error looking up cert policy groups.", e);
+			    		return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+			        });
+		   });
     }
     
     /**
@@ -782,53 +618,36 @@ public class CertPolicyResource extends ProtectedResource
      * or domain with the given respective names do not exist.
      */
     @PostMapping("groups/domain/{group}/{domain}")
-    public ResponseEntity<Mono<Void>> associatePolicyGroupToDomain(@PathVariable("group") String groupName, @PathVariable("domain") String domainName)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> associatePolicyGroupToDomain(@PathVariable("group") String groupName, @PathVariable("domain") String domainName)
     {
-    	// make sure the group exists
-    	org.nhindirect.config.store.CertPolicyGroup entityGroup;
-    	try
-    	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
-    		if (entityGroup == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up policy group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}  
-    	
-    	// make sure the domain exists
-    	org.nhindirect.config.store.Domain entityDomain;
-    	try
-    	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
-    		if (entityDomain == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}  
-    	
-       	// associate the domain and group
-    	try
-    	{
-			final org.nhindirect.config.store.CertPolicyGroupDomainReltn policyGroupDomainAssoc = 
-					new org.nhindirect.config.store.CertPolicyGroupDomainReltn();
-			policyGroupDomainAssoc.setDomainId(entityDomain.getId());
-			policyGroupDomainAssoc.setCertPolicyGroupId(entityGroup.getId());
-    		
-			domainReltnRepo.save(policyGroupDomainAssoc).block();
-
-    		return ResponseEntity.status(HttpStatus.NO_CONTENT).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error associating policy group to domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+		return groupRepo.findByPolicyGroupNameIgnoreCase(groupName)
+		   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()))
+		   .flatMap(group -> 
+		   {
+			   if (group.getPolicyGroupName() == null)
+				   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+			   
+			   return domainRepo.findByDomainNameIgnoreCase(domainName)
+				   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
+				   .flatMap(domain -> 
+				   {
+					   if (domain.getDomainName() == null)
+						   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+					   
+					   final org.nhindirect.config.store.CertPolicyGroupDomainReltn policyGroupDomainAssoc = 
+								new org.nhindirect.config.store.CertPolicyGroupDomainReltn();
+					   policyGroupDomainAssoc.setDomainId(domain.getId());
+					   policyGroupDomainAssoc.setPolicyGroupId(group.getId());
+			    		
+					   return domainReltnRepo.save(policyGroupDomainAssoc)
+					   .then()
+					   .onErrorResume(e -> { 
+				    		log.error("Error associating policy group to domain.", e);
+				    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+				       }); 
+				   });
+		   });
     }
     
     /**
@@ -839,48 +658,30 @@ public class CertPolicyResource extends ProtectedResource
      * or domain with the given respective names do not exist.
      */
     @DeleteMapping("groups/domain/{group}/{domain}")
-    public ResponseEntity<Mono<Void>> disassociatePolicyGroupFromDomain(@PathVariable("group") String groupName, @PathVariable("domain") String domainName)
+    public Mono<Void> disassociatePolicyGroupFromDomain(@PathVariable("group") String groupName, @PathVariable("domain") String domainName)
     {
-    	// make sure the group exists
-    	org.nhindirect.config.store.CertPolicyGroup entityGroup;
-    	try
-    	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
-    		if (entityGroup == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up policy group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}  
-    	
-    	// make sure the domain exists
-    	org.nhindirect.config.store.Domain entityDomain;
-    	try
-    	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
-    		if (entityDomain == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	} 
-    	
-    	// now make the disassociation
-    	try
-    	{
-    		domainReltnRepo.deleteByDomainIdAndCertPolicyGroupId(entityDomain.getId(), entityGroup.getId()).block();
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error disassociating policy group from domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	} 
-    }
+		return groupRepo.findByPolicyGroupNameIgnoreCase(groupName)
+		   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()))
+		   .flatMap(group -> 
+		   {
+			   if (group.getPolicyGroupName() == null)
+				   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+			   
+			   return domainRepo.findByDomainNameIgnoreCase(domainName)
+				   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
+				   .flatMap(domain -> 
+				   {
+					   if (domain.getDomainName() == null)
+						   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+					   
+					   return domainReltnRepo.deleteByDomainIdAndPolicyGroupId(domain.getId(), group.getId())
+						   .onErrorResume(e -> { 
+					    		log.error("Error disassociating policy group from domain.", e);
+						    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+						       }); 
+					   });
+			   });
+}
     
     /**
      * Removes all policy groups for a given domain.
@@ -889,33 +690,21 @@ public class CertPolicyResource extends ProtectedResource
      * not exist.
      */
     @DeleteMapping(value="groups/domain/{domain}/deleteFromDomain")
-    public ResponseEntity<Mono<Void>> disassociatePolicyGroupsFromDomain(@PathVariable("domain") String domainName)
+    public Mono<Void> disassociatePolicyGroupsFromDomain(@PathVariable("domain") String domainName)
     {
-    	// make sure the domain exists
-    	org.nhindirect.config.store.Domain entityDomain;
-    	try
-    	{
-    		entityDomain = domainRepo.findByDomainNameIgnoreCase(domainName).block();
-    		if (entityDomain == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	} 
-    	
-    	// now make the disassociation
-    	try
-    	{
-    		domainReltnRepo.deleteByDomainId(entityDomain.getId()).block();
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error disassociating policy groups from domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	} 
+	   return domainRepo.findByDomainNameIgnoreCase(domainName)
+		   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
+		   .flatMap(domain -> 
+		   {
+			   if (domain.getDomainName() == null)
+				   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+			   
+			   return domainReltnRepo.deleteByDomainId(domain.getId())
+			       .onErrorResume(e -> { 
+		    		log.error("Error disassociating policy groups from domain.", e);
+			    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+			       }); 
+		   });
     }
     
     /**
@@ -925,32 +714,20 @@ public class CertPolicyResource extends ProtectedResource
      * name does not exist.
      */
     @DeleteMapping("groups/domain/{group}/deleteFromGroup")
-    public ResponseEntity<Mono<Void>> disassociatePolicyGroupFromDomains(@PathVariable("group") String groupName)
+    public Mono<Void> disassociatePolicyGroupFromDomains(@PathVariable("group") String groupName)
     {
-    	// make sure the group exists
-    	org.nhindirect.config.store.CertPolicyGroup entityGroup;
-    	try
-    	{
-    		entityGroup = groupRepo.findByPolicyGroupNameIgnoreCase(groupName).block();
-    		if (entityGroup == null)
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up policy group.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}  
-    	
-    	// now make the disassociation
-    	try
-    	{
-    		domainReltnRepo.deleteByCertPolicyGroupId(entityGroup.getId()).block();
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error disassociating policy groups from domain.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	} 
+		return groupRepo.findByPolicyGroupNameIgnoreCase(groupName)
+		   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()))
+		   .flatMap(group -> 
+		   {
+			   if (group.getPolicyGroupName() == null)
+				   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+			   
+			   return domainReltnRepo.deleteByPolicyGroupId(group.getId())
+		       .onErrorResume(e -> { 
+	    		log.error("Error disassociating policy groups from domain.", e);
+		    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		       }); 
+		   });
     }    
 }
