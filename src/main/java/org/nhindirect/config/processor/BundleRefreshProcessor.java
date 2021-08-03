@@ -23,6 +23,8 @@ package org.nhindirect.config.processor;
 
 import org.nhindirect.config.store.TrustBundle;
 
+import reactor.core.publisher.Mono;
+
 /**
  * Interface for refreshing the anchors within a bundle.  This interface is typically
  * incorporated as part of enterprise application flow such as an Apache Camel route
@@ -37,5 +39,5 @@ public interface BundleRefreshProcessor
 	 * using the bundle checksum), then the anchors in the bundle may not be updated.
 	 * @param bundle The bundle that will be updated.
 	 */
-	public void refreshBundle(TrustBundle bundle);	
+	public Mono<?> refreshBundle(TrustBundle bundle);	
 }

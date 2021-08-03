@@ -1,17 +1,18 @@
 package org.nhindirect.config.resources;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
+
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
@@ -24,10 +25,12 @@ import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
 import org.nhindirect.config.repository.CertPolicyGroupRepository;
 import org.nhindirect.config.repository.DomainRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -83,11 +86,10 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 					});	
 				}
 				
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/domain/{groupName}/{domainName}", HttpMethod.POST, null, Void.class,
-						getGroupNameToAssociate(), getDomainNameToAssociate());
-				if (resp.getStatusCodeValue() != 204)
-					throw new HttpClientErrorException(resp.getStatusCode());
-				
+			    webClient.post()
+				.uri(uriBuilder ->  uriBuilder.path("/certpolicy/groups/domain/{groupName}/{domainName}").build(getGroupNameToAssociate(), getDomainNameToAssociate()))
+				.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<CertPolicyGroup>>() {}).block();
+					    
 				doAssertions();
 				
 			}
@@ -169,7 +171,7 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 					final org.nhindirect.config.store.CertPolicyGroup group  = policyGroupRepo.findByPolicyGroupNameIgnoreCase(getGroupNameToAssociate()).block();
 					
 					
-					assertEquals(group.getId(), reltn.getCertPolicyGroupId());
+					assertEquals(group.getId(), reltn.getPolicyGroupId());
 					assertEquals(domain.getId(), reltn.getDomainId());
 				}
 			}.perform();
@@ -235,8 +237,8 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(404, ex.getRawStatusCode());
 				}
 			}.perform();
@@ -302,8 +304,8 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(404, ex.getRawStatusCode());
 				}
 			}.perform();
@@ -368,8 +370,8 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();
@@ -390,7 +392,9 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 						CertPolicyGroupRepository mockPolicyDAO = mock(CertPolicyGroupRepository.class);
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						
-						when(mockPolicyDAO.findByPolicyGroupNameIgnoreCase("Group1")).thenReturn(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()));
+						final org.nhindirect.config.store.CertPolicyGroup group = new org.nhindirect.config.store.CertPolicyGroup();
+						group.setPolicyGroupName("Test");
+						when(mockPolicyDAO.findByPolicyGroupNameIgnoreCase("Group1")).thenReturn(Mono.just(group));
 						doThrow(new RuntimeException()).when(mockDomainDAO).findByDomainNameIgnoreCase((String)any());
 						
 						certService.setCertPolicyGroupRepository(mockPolicyDAO);
@@ -439,8 +443,8 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();
@@ -462,8 +466,14 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						CertPolicyGroupDomainReltnRepository mockReltn = mock(CertPolicyGroupDomainReltnRepository.class);
 						
-						when(mockPolicyDAO.findByPolicyGroupNameIgnoreCase("Group1")).thenReturn(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()));
-						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(Mono.just(new org.nhindirect.config.store.Domain()));
+						final org.nhindirect.config.store.CertPolicyGroup group = new org.nhindirect.config.store.CertPolicyGroup();
+						group.setPolicyGroupName("Test");
+						
+						final org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
+						domain.setDomainName("Test");
+						
+						when(mockPolicyDAO.findByPolicyGroupNameIgnoreCase("Group1")).thenReturn(Mono.just(group));
+						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(Mono.just(domain));
 						doThrow(new RuntimeException()).when(mockReltn).save((org.nhindirect.config.store.CertPolicyGroupDomainReltn)any());
 						
 						certService.setCertPolicyGroupRepository(mockPolicyDAO);
@@ -513,8 +523,8 @@ public class CertPolicyResource_associatePolicyGroupToDomainTest extends SpringB
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();

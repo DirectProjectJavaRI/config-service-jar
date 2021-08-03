@@ -1,14 +1,14 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
@@ -20,6 +20,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class DomainResource_getDomainTest extends SpringBaseTest
 {    
@@ -52,15 +53,11 @@ public class DomainResource_getDomainTest extends SpringBaseTest
 					throw new HttpClientErrorException(resp.getStatusCode());
 			}
 			
-			final ResponseEntity<Domain> getDomain = testRestTemplate.getForEntity("/domain/" + getDomainNameToGet(), Domain.class);
+			final Domain domain = webClient.get()
+			.uri(uriBuilder ->  uriBuilder.path("/domain/{domainName}").build(getDomainNameToGet()))
+			.retrieve().bodyToMono(Domain.class).block();
 			
-			int statusCode = getDomain.getStatusCodeValue();
-			if (statusCode == 404)
-				doAssertions(null);
-			else if (statusCode == 200)
-				doAssertions(getDomain.getBody());
-			else
-				throw new HttpClientErrorException(getDomain.getStatusCode());		
+			doAssertions(domain);
 
 		}
 		
@@ -139,9 +136,11 @@ public class DomainResource_getDomainTest extends SpringBaseTest
 			}
 			
 			@Override
-			protected void doAssertions(Domain address) throws Exception
+			protected void assertException(Exception exception) throws Exception 
 			{
-				assertNull(address);
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(404, ex.getRawStatusCode());
 			}
 		}.perform();
 	}	
@@ -193,8 +192,8 @@ public class DomainResource_getDomainTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getRawStatusCode());
 			}
 		}.perform();

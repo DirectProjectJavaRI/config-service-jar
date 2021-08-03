@@ -1,18 +1,19 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.junit.Test;
 import org.nhindirect.common.cert.Thumbprint;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
@@ -26,6 +27,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 
@@ -87,15 +89,11 @@ public class AnchorResource_getAnchorForOwnerTest extends SpringBaseTest
 			if (getThumbprint() != null)
 				builder.queryParam("thumbprint", getThumbprint());
 			
-			final ResponseEntity<Collection<Anchor>> getAnchors = 
-					testRestTemplate.exchange(builder.toUriString(), HttpMethod.GET, null, new ParameterizedTypeReference<Collection<Anchor>>() {});
+			final Collection<Anchor> getAnchors = webClient.get()
+			.uri(builder.toUriString())
+			.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Anchor>>() {}).block();			
 
-			if (getAnchors.getStatusCodeValue() == 404 || getAnchors.getStatusCodeValue() == 204)
-				doAssertions(new ArrayList<Anchor>());
-			else if (getAnchors.getStatusCodeValue() != 200)
-				throw new HttpClientErrorException(getAnchors.getStatusCode());
-			else
-				doAssertions(getAnchors.getBody());
+			doAssertions(getAnchors);
 
 			
 		}
@@ -697,8 +695,8 @@ public class AnchorResource_getAnchorForOwnerTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getRawStatusCode());
 			}
 		}.perform();

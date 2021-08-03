@@ -1,19 +1,20 @@
 package org.nhindirect.config.resources;
 
-import static org.mockito.Matchers.eq;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
@@ -65,6 +66,7 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
+				
 				
 				final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(getBundleDataToUpdate());
 				final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/bundleAttributes", HttpMethod.POST, requestEntity, Void.class, 
@@ -615,8 +617,10 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 					{
 						super.setupMocks();
 
+						org.nhindirect.config.store.TrustBundle bundle = new org.nhindirect.config.store.TrustBundle();
+						bundle.setBundleName("Test");
 						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
-						when(mockDAO.findByBundleNameIgnoreCase("testBundle1")).thenReturn(Mono.just(new org.nhindirect.config.store.TrustBundle()));
+						when(mockDAO.findByBundleNameIgnoreCase("testBundle1")).thenReturn(Mono.just(bundle));
 						doThrow(new RuntimeException()).when(mockDAO).save(any());
 						
 						bundleService.setTrustBundleRepository(mockDAO);

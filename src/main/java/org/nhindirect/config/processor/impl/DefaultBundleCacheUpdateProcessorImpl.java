@@ -22,18 +22,16 @@ THE POSSIBILITY OF SUCH DAMAGE.
 package org.nhindirect.config.processor.impl;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
 
-import org.apache.camel.Handler;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.nhindirect.config.processor.BundleCacheUpdateProcessor;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
 import org.nhindirect.config.repository.TrustBundleRepository;
-import org.nhindirect.config.store.TrustBundle;
+
+import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 /**
- * Camel based implementation of the {@linkplain BundleCacheUpdateProcessor} interface.
+ * Default implementation of the {@linkplain BundleCacheUpdateProcessor} interface.
  * <p>
  * This implementation can be triggered on a regular interval to check if a bundle needs to be refreshed.
  * The implementation iterates through the entire list of configured trust bundles in the system checking
@@ -43,9 +41,9 @@ import org.nhindirect.config.store.TrustBundle;
  * @author Greg Meyer
  * @since 1.3
  */
+@Slf4j
 public class DefaultBundleCacheUpdateProcessorImpl implements BundleCacheUpdateProcessor
 {
-    private static final Log log = LogFactory.getLog(DefaultBundleCacheUpdateProcessorImpl.class);
 	
     /**
      * Trust bundle repo
@@ -87,56 +85,57 @@ public class DefaultBundleCacheUpdateProcessorImpl implements BundleCacheUpdateP
 	/**
 	 * {@inheritDoc}
 	 */
-	@Handler
-	public void updateBundleCache()
+	public Mono<Void> updateBundleCache()
 	{
-		Collection<TrustBundle> bundles;
 		try
 		{
-			bundles = bundleRepo.findAll().collectList().block();
-			for (TrustBundle bundle : bundles)
-			{
-				boolean refresh = false;
-				
-				// if the refresh interval is 0 or less, then we won't ever auto refresh the bundle
-				if (bundle.getRefreshInterval() <= 0)
-					continue;  
-				
-				// see if this bundle needs to be checked for updating
-				final LocalDateTime lastAttempt = bundle.getLastSuccessfulRefresh();
-			
-				if (lastAttempt == null)
-					// never been attempted successfully... better go get it
-					refresh = true;
-				else
+			return bundleRepo.findAll()
+				.flatMap(bundle -> 
 				{
-					// check the the last attempt date against now and see if we need to refresh
-					LocalDateTime now = LocalDateTime.now();
-					LocalDateTime lastAttemptCheck = LocalDateTime.from(lastAttempt);
-					lastAttemptCheck.plusSeconds(bundle.getRefreshInterval());
 					
-					if (lastAttemptCheck.isBefore(now))
+					// if the refresh interval is 0 or less, then we won't ever auto refresh the bundle
+					if (bundle.getRefreshInterval() <= 0)
+						return Mono.empty(); 
+					
+					boolean refresh = false;
+					
+					
+					// see if this bundle needs to be checked for updating
+					final LocalDateTime lastAttempt = bundle.getLastSuccessfulRefresh();
+					
+					if (lastAttempt == null)
+						// never been attempted successfully... better go get it
 						refresh = true;
-				}
-				
-				if (refresh)
-				{
-					// refresh the bundle
-					try
+					else
 					{
-						refreshProcessor.refreshBundle(bundle);		
+						// check the the last attempt date against now and see if we need to refresh
+						LocalDateTime now = LocalDateTime.now();
+						LocalDateTime lastAttemptCheck = LocalDateTime.from(lastAttempt);
+						lastAttemptCheck = lastAttemptCheck.plusSeconds(bundle.getRefreshInterval());
+						
+						if (lastAttemptCheck.isBefore(now))
+							refresh = true;
 					}
-					catch (Exception e)
-					{
-						log.warn("Failed to check the status of bundle " + bundle.getBundleName(), e);
-					}
-				}
-			}
+					
+					final Mono<?> retVal = (refresh) ? refreshProcessor.refreshBundle(bundle) : Mono.empty();
+	
+					return retVal
+				   	     	.onErrorResume(e -> { 
+				   	    		log.error("Error refreshing trust bundles", e);
+				   	    		return Mono.empty();
+				   	    	});	
+				})
+				.onErrorResume(e -> { 
+	   	    		log.error("Error refreshing trust bundles", e);
+	   	    		return Mono.empty();
+	   	    	})
+				.then();
 		}
 		catch (Exception e)
 		{
-			log.warn("Failed to check the status of trust bundles ", e);
+    		log.error("Error retriving trust bundles", e);
+    		return Mono.empty();
 		}
-		
+
 	}
 }

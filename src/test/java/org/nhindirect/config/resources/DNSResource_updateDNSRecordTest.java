@@ -1,18 +1,18 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
+import org.junit.jupiter.api.Test;
+
 import java.util.Arrays;
 import java.util.Collection;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.DNSRecord;
@@ -77,16 +77,14 @@ public class DNSResource_updateDNSRecordTest extends SpringBaseTest
 				if (records.getStatusCodeValue() != 204)
 					throw new HttpClientErrorException(records.getStatusCode());
 
-				final ResponseEntity<Collection<DNSRecord>> getRecords = 
-						testRestTemplate.exchange("/dns?type={type}&name={name}", HttpMethod.GET, null, new ParameterizedTypeReference<Collection<DNSRecord>>() {}, 
-						recordToUpdate.getType(), recordToUpdate.getName());
+				final Collection<DNSRecord> getRecords = webClient.get()
+						.uri(uriBuilder ->  uriBuilder.path("/dns")
+						.queryParam("type", recordToUpdate.getType())
+						.queryParam("name", recordToUpdate.getName())
+						.build())
+						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<DNSRecord>>() {}).block();
 
-				if (getRecords.getStatusCodeValue() == 404 || getRecords.getStatusCodeValue() == 204)
-					doAssertions(new ArrayList<DNSRecord>());
-				else if (getRecords.getStatusCodeValue() != 200)
-					throw new HttpClientErrorException(records.getStatusCode());
-				else
-					doAssertions(getRecords.getBody());					
+				doAssertions(getRecords);					
 			}
 			
 			
@@ -267,6 +265,7 @@ public class DNSResource_updateDNSRecordTest extends SpringBaseTest
 
 						DNSRepository mockDAO = mock(DNSRepository.class);
 						final org.nhindirect.config.store.DNSRecord op = new org.nhindirect.config.store.DNSRecord();
+						op.setName("test");
 						when(mockDAO.findById(1233L)).thenReturn(Mono.just(op));
 						doThrow(new RuntimeException()).when(mockDAO).save((org.nhindirect.config.store.DNSRecord)any());
 						

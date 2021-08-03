@@ -1,15 +1,16 @@
 package org.nhindirect.config.resources;
 
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
@@ -19,6 +20,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+
 
 public class AddressResource_getAddressTest  extends SpringBaseTest
 {
@@ -67,16 +70,11 @@ public class AddressResource_getAddressTest  extends SpringBaseTest
 					throw new HttpClientErrorException(resp.getStatusCode());
 			}
 
-			final ResponseEntity<Address> getAddress = testRestTemplate.getForEntity("/address/" + getAddressNameToGet(), Address.class);
+			final Address addr = webClient.get()
+			.uri(uriBuilder ->  uriBuilder.path("address/{addr}").build(getAddressNameToGet()))
+			.retrieve().bodyToMono(Address.class).block();
 			
-			int statusCode = getAddress.getStatusCodeValue();
-			if (statusCode == 404)
-				doAssertions(null);
-			else if (statusCode == 200)
-				doAssertions(getAddress.getBody());
-			else
-				throw new HttpClientErrorException(getAddress.getStatusCode());
-
+			doAssertions(addr);
 			
 		}
 		
@@ -133,7 +131,7 @@ public class AddressResource_getAddressTest  extends SpringBaseTest
 	}	
 	
 	@Test
-	public void testGetAddress_nonExistentAddress_assertNull() throws Exception
+	public void testGetAddress_nonExistentAddress_assertNotFound() throws Exception
 	{
 		new TestPlan()
 		{
@@ -165,9 +163,11 @@ public class AddressResource_getAddressTest  extends SpringBaseTest
 			}
 			
 			@Override
-			protected void doAssertions(Address address) throws Exception
+			protected void assertException(Exception exception) throws Exception 
 			{
-				assertNull(address);
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(404, ex.getRawStatusCode());
 			}
 		}.perform();
 	}	
@@ -177,9 +177,6 @@ public class AddressResource_getAddressTest  extends SpringBaseTest
 	{
 		new TestPlan()
 		{
-			
-			protected Address address;
-			
 			@Override
 			protected void setupMocks()
 			{
@@ -210,14 +207,7 @@ public class AddressResource_getAddressTest  extends SpringBaseTest
 			@Override
 			protected  Address getAddressToAdd()
 			{
-				address = new Address();
-				
-				address.setEmailAddress("me@test.com");
-				address.setType("email");
-				address.setEndpoint("none");
-				address.setDisplayName("me");
-				
-				return address;
+				return null;
 			}
 			
 			@Override
@@ -235,8 +225,8 @@ public class AddressResource_getAddressTest  extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getRawStatusCode());
 			}
 		}.perform();

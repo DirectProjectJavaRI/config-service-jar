@@ -1,14 +1,15 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.any;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
@@ -213,6 +214,7 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 
 						SettingRepository mockDAO = mock(SettingRepository.class);
 						org.nhindirect.config.store.Setting setting = new org.nhindirect.config.store.Setting();
+						setting.setName("setting1");
 						when(mockDAO.findByNameIgnoreCase(eq("setting1"))).thenReturn(Mono.just(setting));
 						doThrow(new RuntimeException()).when(mockDAO).save((org.nhindirect.config.store.Setting)any());
 						

@@ -1,6 +1,9 @@
 package org.nhindirect.config.processor.impl;
 
-import static org.mockito.Matchers.any;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -14,8 +17,6 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
-import org.junit.Before;
-import org.junit.Test;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
@@ -23,6 +24,7 @@ import org.nhindirect.config.store.ConfigurationStoreException;
 import org.nhindirect.config.store.TrustBundle;
 
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 {
@@ -30,11 +32,12 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 	
 	protected TrustBundleRepository repo;
 	
-	@Before
+	@BeforeEach
 	public void setUp()
 	{
 		processor = mock(BundleRefreshProcessor.class);
 		repo = mock(TrustBundleRepository.class);
+		when(processor.refreshBundle(any())).thenReturn(Mono.empty());
 	}
 	
 	@Test
@@ -51,7 +54,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 		
 		when(repo.findAll()).thenReturn(Flux.fromIterable(bundles));
 		
-		cacheUpdate.updateBundleCache();
+		cacheUpdate.updateBundleCache().block();
 		
 		verify(repo, times(1)).findAll();
 		verify(processor, times(1)).refreshBundle(bundle);
@@ -70,7 +73,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 		
 		when(repo.findAll()).thenReturn(Flux.fromIterable(bundles));
 		
-		cacheUpdate.updateBundleCache();
+		cacheUpdate.updateBundleCache().block();
 		
 		verify(repo, times(1)).findAll();
 		verify(processor, never()).refreshBundle(bundle);
@@ -78,9 +81,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 	
 	@Test
 	public void testUpdateBundleCache_updateCache_refreshIntervalNotExpired_assertBundleRefreshNotCalled() throws Exception
-	{
-		Thread.sleep(5000);
-		
+	{		
 		final DefaultBundleCacheUpdateProcessorImpl cacheUpdate = new DefaultBundleCacheUpdateProcessorImpl();
 		cacheUpdate.setRepository(repo);
 		cacheUpdate.setRefreshProcessor(processor);
@@ -93,7 +94,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 		
 		when(repo.findAll()).thenReturn(Flux.fromIterable(bundles));
 		
-		cacheUpdate.updateBundleCache();
+		cacheUpdate.updateBundleCache().block();
 		
 		verify(repo, times(1)).findAll();
 		verify(processor, never()).refreshBundle(bundle);
@@ -116,7 +117,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 		
 		when(repo.findAll()).thenReturn(Flux.fromIterable(bundles));
 		
-		cacheUpdate.updateBundleCache();
+		cacheUpdate.updateBundleCache().block();
 		
 		verify(repo, times(1)).findAll();
 		verify(processor, times(1)).refreshBundle(bundle);
@@ -132,7 +133,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 
 		doThrow(new ConfigurationStoreException("Just Passing Through")).when(repo).findAll();
 
-		cacheUpdate.updateBundleCache();
+		cacheUpdate.updateBundleCache().block();
 		
 		verify(repo, times(1)).findAll();
 		verify(processor, never()).refreshBundle((TrustBundle)any());
@@ -154,7 +155,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_updateBundleCacheTest
 		
 		doThrow(new RuntimeException("Just Passing Through")).when(processor).refreshBundle(bundle);
 		
-		cacheUpdate.updateBundleCache();
+		cacheUpdate.updateBundleCache().block();
 	
 		verify(repo, times(1)).findAll();
 		verify(processor, times(1)).refreshBundle(bundle);

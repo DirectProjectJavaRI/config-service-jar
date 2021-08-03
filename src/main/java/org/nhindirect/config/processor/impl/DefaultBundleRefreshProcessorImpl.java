@@ -24,7 +24,7 @@ package org.nhindirect.config.processor.impl;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.net.SocketTimeoutException;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.NoSuchAlgorithmException;
@@ -32,26 +32,19 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
-
-import org.apache.camel.Handler;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.bouncycastle.cms.CMSProcessableByteArray;
 import org.bouncycastle.cms.CMSSignedData;
 import org.bouncycastle.cms.SignerInformation;
@@ -66,17 +59,32 @@ import org.nhindirect.config.store.BundleRefreshError;
 import org.nhindirect.config.store.BundleThumbprint;
 import org.nhindirect.config.store.TrustBundle;
 import org.nhindirect.config.store.TrustBundleAnchor;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.web.reactive.function.client.WebClient;
+
+import io.netty.channel.ChannelOption;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.handler.timeout.ReadTimeoutHandler;
+import io.netty.handler.timeout.WriteTimeoutHandler;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
 /**
- * Camel based implementation of the {@linkplain BundleRefreshProcessor} interface.
+ * Default implementation of the {@linkplain BundleRefreshProcessor} interface.
  * <p>
  * The implementation allows for bundles to be downloaded from SSL protected sites that may not
  * chain back to a trust CA.  This is useful in developement environments and is not recommended in
- * a production invironment.  By default, this feature is disable, but can be enabled using the 
+ * a production environment.  By default, this feature is disable, but can be enabled using the 
  * {@link DefaultBundleRefreshProcessorImpl#BUNDLE_REFRESH_PROCESSOR_ALLOW_DOWNLOAD_FROM_UNTRUSTED} options parameter.
  * @author Greg Meyer
  * @since 1.3
  */
+@Slf4j
 public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor 
 {
 	
@@ -89,14 +97,14 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	protected static final int DEFAULT_URL_CONNECTION_TIMEOUT = 10000; // 10 seconds	
 	protected static final int DEFAULT_URL_READ_TIMEOUT = 10000; // 10 hour seconds	
 	
-    private static final Log log = LogFactory.getLog(DefaultBundleRefreshProcessorImpl.class);
-	
     /**
      * Trust bundle repo
      */
 	protected TrustBundleRepository bundleRepo;
 	
 	protected TrustBundleAnchorRepository bundleAnchorRepo;
+	
+	protected SslContext sslContext;
 	
     static
     {
@@ -120,54 +128,19 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	/**
 	 * Default constructor.
 	 */
+	@SneakyThrows
 	public DefaultBundleRefreshProcessorImpl()
 	{
 		OptionsParameter allowNonVerSSLParam = OptionsManager.getInstance().getParameter(BUNDLE_REFRESH_PROCESSOR_ALLOW_DOWNLOAD_FROM_UNTRUSTED);
 		///CLOVER:OFF
+		final SslContextBuilder sslBuilder  = SslContextBuilder
+        .forClient();
+
 		if (OptionsParameter.getParamValueAsBoolean(allowNonVerSSLParam, false))
-		{
-			try
-			{
-		        TrustManager[] trustAllCerts = new TrustManager[] { new X509TrustManager() 
-		        {
-		            public java.security.cert.X509Certificate[] getAcceptedIssuers() 
-		            {
-		                return null;
-		            }
-		            
-		            public void checkClientTrusted(X509Certificate[] certs, String authType) 
-		            {
-		            }
-		            
-		            public void checkServerTrusted(X509Certificate[] certs, String authType) 
-		            {
-		            }
-		        }};
-		        
-		        // Install the all-trusting trust manager
-		        final SSLContext sc = SSLContext.getInstance("SSL");
-		        sc.init(null, trustAllCerts, new java.security.SecureRandom());
-		        
-		        HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-		        
-		        // Create all-trusting host name verifier
-		        
-		        HostnameVerifier allHostsValid = new HostnameVerifier() 
-		        {
-		            public boolean verify(String hostname, SSLSession session) 
-		            {
-		                return true;
-		            }
-		        };
-		        
-		        // Install the all-trusting host verifier
-		        HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
-			}
-			catch (Exception e)
-			{
-				
-			}
-		}
+			sslBuilder.trustManager(InsecureTrustManagerFactory.INSTANCE);
+			
+		sslContext = sslBuilder.build();
+
 		///CLOVER:ON
 	}
 	
@@ -195,98 +168,109 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	/**
 	 * {@inheritDoc}
 	 */
-	@Handler
-	public void refreshBundle(TrustBundle bundle)
+	public Mono<?> refreshBundle(TrustBundle bundle)
 	{
 		// track when the process started
 		final Calendar processAttempStart = Calendar.getInstance(Locale.getDefault());
 
 		// get the bundle from the URL
-		final byte[] rawBundle = downloadBundleToByteArray(bundle, processAttempStart);
-	
-		if (rawBundle == null)
-			return;
-		
-		// check to see if there is a difference in the anchor sets
-		// use a checksum 
-		boolean update = false;
-		String checkSum = "";
-		if (bundle.getCheckSum() == null)
-			// never got a check sum... 
-			update = true;
-		else
-		{
-			try
+		return downloadBundleToByteArray(bundle, processAttempStart)
+			.flatMap(rawBundle -> 
 			{
-				checkSum = BundleThumbprint.toThumbprint(rawBundle).toString();
-				update = !bundle.getCheckSum().equals(BundleThumbprint.toThumbprint(rawBundle).toString());
-			}
-			///CLOVER:OFF
-			catch (NoSuchAlgorithmException ex)
-			{
-				bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
-				bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
-				bundleRepo.save(bundle).block();	
-				log.error("Failed to generate downloaded bundle thumbprint ", ex);
-			}	
-			///CLOVER:ON
-		}
-		
-		if (!update)
-		{
-			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
-			bundle.setLastRefreshError(BundleRefreshError.SUCCESS.ordinal());
-			bundleRepo.save(bundle).block();	
-
-			return;
-		}
-		
-		final Collection<X509Certificate> bundleCerts = convertRawBundleToAnchorCollection(rawBundle, bundle, processAttempStart);
-
-		if (bundleCerts == null)
-			return;
-		
-		final HashSet<X509Certificate> downloadedSet = new HashSet<X509Certificate>((Collection<X509Certificate>)bundleCerts);	
-
-		try
-		{
-			final Collection<TrustBundleAnchor> newAnchors = new ArrayList<TrustBundleAnchor>();
-			for (X509Certificate downloadedAnchor : downloadedSet)
-			{
-				try
+				if (rawBundle == null || rawBundle.length == 0)
+					return Mono.empty();
+				
+				// check to see if there is a difference in the anchor sets
+				// use a checksum 
+				boolean update = false;
+				String checkSum = "";
+				if (bundle.getCheckSum() == null)
+					// never got a check sum... 
+					update = true;
+				else
 				{
-					final TrustBundleAnchor anchorToAdd = new TrustBundleAnchor();
-					anchorToAdd.setData(downloadedAnchor.getEncoded());
-					anchorToAdd.setTrustBundleId(bundle.getId());
+					try
+					{
+						checkSum = BundleThumbprint.toThumbprint(rawBundle).toString();
+						update = !bundle.getCheckSum().equals(BundleThumbprint.toThumbprint(rawBundle).toString());
+					}
+					///CLOVER:OFF
+					catch (NoSuchAlgorithmException ex)
+					{
+						bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+						bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
+						
+						log.error("Failed to generate downloaded bundle thumbprint ", ex);
+						
+						return bundleRepo.save(bundle);
+						
+					}	
+					///CLOVER:ON
+				}
+				
+				final String finalCheckSum = checkSum;
+				
+				if (!update)
+				{
+					bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+					bundle.setLastRefreshError(BundleRefreshError.SUCCESS.ordinal());
+					return bundleRepo.save(bundle);
+
+				}
+				
+				return convertRawBundleToAnchorCollection(rawBundle, bundle, processAttempStart)
+					.flatMap(bundleCerts ->
+				{
+					if (bundleCerts == null || bundleCerts.isEmpty())
+						return Mono.empty();
 					
-					newAnchors.add(anchorToAdd);
-				}
-				///CLOVER:OFF
-				catch (Exception e) 
-				{ 
-					log.warn("Failed to convert downloaded anchor to byte array. ", e);
-				}
-				///CLOVER:ON
-			}
+					final HashSet<X509Certificate> downloadedSet = new HashSet<X509Certificate>((Collection<X509Certificate>)bundleCerts);	
+	
+	
+					final Collection<TrustBundleAnchor> newAnchors = new ArrayList<TrustBundleAnchor>();
+					for (X509Certificate downloadedAnchor : downloadedSet)
+					{
+						try
+						{
+							final TrustBundleAnchor anchorToAdd = new TrustBundleAnchor();
+							anchorToAdd.setData(downloadedAnchor.getEncoded());
+							anchorToAdd.setTrustBundleId(bundle.getId());
+							
+							newAnchors.add(anchorToAdd);
+						}
+						///CLOVER:OFF
+						catch (Exception e) 
+						{ 
+							log.warn("Failed to convert downloaded anchor to byte array. ", e);
+							return Mono.empty();
+						}
+						///CLOVER:ON
+					}
+	
+		    		return bundleAnchorRepo.deleteByTrustBundleId(bundle.getId())
+		    		.then(bundleAnchorRepo.saveAll(newAnchors).collectList())
+		    		.flatMap(res -> 
+		    		{
+						bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+						bundle.setLastRefreshError(BundleRefreshError.SUCCESS.ordinal());
+						bundle.setCheckSum(finalCheckSum);
+						bundle.setLastSuccessfulRefresh(LocalDateTime.now());
+						
+						return bundleRepo.save(bundle)
+							.onErrorResume(ex -> 
+							{
+								log.error("Failed to write updated bundle anchors to data store ", ex);
+								
+							
+								bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+								bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
+								return bundleRepo.save(bundle);
+								
+							});	
+		    		});
+				});
 
-    		bundleAnchorRepo.deleteByTrustBundleId(bundle.getId()).block();
-			bundleAnchorRepo.saveAll(newAnchors).collectList().block();
-			
-			
-			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
-			bundle.setLastRefreshError(BundleRefreshError.SUCCESS.ordinal());
-			bundle.setCheckSum(checkSum);
-			bundle.setLastSuccessfulRefresh(LocalDateTime.now());
-			bundleRepo.save(bundle).block();
-
-		}
-		catch (Exception e) 
-		{ 
-			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
-			bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
-			bundleRepo.save(bundle).block();	
-			log.error("Failed to write updated bundle anchors to data store ", e);
-		}
+			});
     }
 	
 	/**
@@ -298,7 +282,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	 * @return
 	 */
 	@SuppressWarnings({ "unchecked", "deprecation" })
-	protected Collection<X509Certificate> convertRawBundleToAnchorCollection(byte[] rawBundle, final TrustBundle existingBundle,
+	protected Mono<Collection<X509Certificate>> convertRawBundleToAnchorCollection(byte[] rawBundle, final TrustBundle existingBundle,
 			final Calendar processAttempStart)
 	{
 		Collection<? extends Certificate> bundleCerts = null;
@@ -357,9 +341,10 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		    		{
 		    			existingBundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
 		    			existingBundle.setLastRefreshError(BundleRefreshError.UNMATCHED_SIGNATURE.ordinal());
-		    			bundleRepo.save(existingBundle).block();	
-						log.warn("Downloaded bundle signature did not match configured signing certificate.");
-						return null;
+		    			log.warn("Downloaded bundle signature did not match configured signing certificate.");
+		    			
+		    			return bundleRepo.save(existingBundle).thenReturn(Collections.emptyList());
+						
 		    		}
 				}
 				
@@ -373,8 +358,11 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			{
     			existingBundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
     			existingBundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
-    			bundleRepo.save(existingBundle).block();	
-				log.warn("Failed to extract anchors from downloaded bundle at URL " + existingBundle.getBundleURL());
+    			
+    			log.warn("Failed to extract anchors from downloaded bundle at URL " + existingBundle.getBundleURL());
+    			
+    			return bundleRepo.save(existingBundle).thenReturn(Collections.emptyList());
+				
 			}
 			finally
 			{
@@ -382,7 +370,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			}
 		}
 		
-		return (Collection<X509Certificate>)bundleCerts;
+		return Mono.just((Collection<X509Certificate>)bundleCerts);
 	}
 	
 	/**
@@ -392,65 +380,77 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	 * @return A byte array representing the raw data of the bundle.
 	 */
 	@SuppressWarnings("deprecation")
-	protected byte[] downloadBundleToByteArray(TrustBundle bundle, Calendar processAttempStart)
+	protected Mono<byte[]> downloadBundleToByteArray(TrustBundle bundle, Calendar processAttempStart)
 	{
-		InputStream inputStream = null;
-
-		byte[] retVal = null;
-		final ByteArrayOutputStream ouStream = new ByteArrayOutputStream();
-		
 		try
 		{
-			// in this case the cert is a binary representation
-			// of the CERT URL... transform to a string
-			final URL certURL = new URL(bundle.getBundleURL());
+			final URI uri = new URI(bundle.getBundleURL());
 			
-			final URLConnection connection = certURL.openConnection();
-			
-			// the connection is not actually made until the input stream
-			// is open, so set the timeouts before getting the stream
-			connection.setConnectTimeout(DEFAULT_URL_CONNECTION_TIMEOUT);
-			connection.setReadTimeout(DEFAULT_URL_READ_TIMEOUT);
-			
-			// open the URL as in input stream
-			inputStream = connection.getInputStream();
-			
-			int BUF_SIZE = 2048;		
-			int count = 0;
-
-			final byte buf[] = new byte[BUF_SIZE];
-			
-			while ((count = inputStream.read(buf)) > -1)
+			if (uri.getScheme().compareToIgnoreCase("file") == 0)
 			{
-				ouStream.write(buf, 0, count);
-			}
-			
-			retVal = ouStream.toByteArray();
-		}
-		///CLOVER:OFF
-		catch (SocketTimeoutException e)
-		{
-			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
-			bundle.setLastRefreshError(BundleRefreshError.DOWNLOAD_TIMEOUT.ordinal());
-			bundleRepo.save(bundle).block();		
+				final ByteArrayOutputStream ouStream = new ByteArrayOutputStream();
 
-			log.warn("Failed to download bundle from URL " + bundle.getBundleURL(), e);
+				
+				final URL certURL = new URL(bundle.getBundleURL());
+				
+				final URLConnection connection = certURL.openConnection();
+				
+				// open the URL as in input stream
+				InputStream inputStream = connection.getInputStream();
+				
+				int BUF_SIZE = 2048;		
+				int count = 0;
+
+				final byte buf[] = new byte[BUF_SIZE];
+				
+				while ((count = inputStream.read(buf)) > -1)
+				{
+					ouStream.write(buf, 0, count);
+				}
+				
+				return Mono.just(ouStream.toByteArray());
+
+			}
+			else
+			{
+				final HttpClient httpClient = HttpClient.create()
+						  .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, DEFAULT_URL_CONNECTION_TIMEOUT)
+						  .secure(t -> t.sslContext(sslContext))
+						  .responseTimeout(Duration.ofMillis(DEFAULT_URL_CONNECTION_TIMEOUT))
+						  .doOnConnected(conn -> 
+						    conn.addHandlerLast(new ReadTimeoutHandler(DEFAULT_URL_READ_TIMEOUT, TimeUnit.MILLISECONDS))
+						      .addHandlerLast(new WriteTimeoutHandler(DEFAULT_URL_READ_TIMEOUT, TimeUnit.MILLISECONDS)));
+				
+				return WebClient.builder().baseUrl(bundle.getBundleURL())
+				.clientConnector(new ReactorClientHttpConnector(httpClient))
+				.build()
+				.get()
+		        .exchange()
+		        .flatMap(response -> response.bodyToMono(ByteArrayResource.class))
+		        .map(ByteArrayResource::getByteArray)
+		        .onErrorResume(ex -> 
+		        {
+		        	log.warn("Failed to download bundle from URL " + bundle.getBundleURL(), ex);
+		        	
+					bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+					bundle.setLastRefreshError(BundleRefreshError.DOWNLOAD_TIMEOUT.ordinal());
+					return bundleRepo.save(bundle)
+							.then(Mono.empty());
+		
+		        });
+			}
 		}
-		///CLOVER:ON
-		catch (Exception e)
+		catch (Exception e )
 		{
+			log.warn("Failed to download bundle from URL " + bundle.getBundleURL(), e);
+			
 			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
 			bundle.setLastRefreshError(BundleRefreshError.NOT_FOUND.ordinal());
-			bundleRepo.save(bundle).block();				
+			return bundleRepo.save(bundle)
+					.then(Mono.empty());
+			
+		}
 
-			log.warn("Failed to download bundle from URL " + bundle.getBundleURL(), e);
-		}
-		finally
-		{
-			IOUtils.closeQuietly(inputStream);
-			IOUtils.closeQuietly(ouStream);
-		}
-		
-		return retVal;
+
 	}
 }

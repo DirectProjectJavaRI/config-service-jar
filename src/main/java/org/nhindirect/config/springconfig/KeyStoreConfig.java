@@ -1,20 +1,19 @@
 package org.nhindirect.config.springconfig;
 
 import org.nhindirect.common.crypto.KeyStoreProtectionManager;
-import org.nhindirect.common.crypto.impl.BootstrappedKeyStoreProtectionManager;
 import org.nhindirect.common.crypto.impl.BootstrappedPKCS11Credential;
 import org.nhindirect.common.crypto.impl.StaticCachedPKCS11TokenKeyStoreProtectionManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Configuration
+@Slf4j
 public class KeyStoreConfig
-{
-	  private static final Logger LOGGER = LoggerFactory.getLogger(KeyStoreConfig.class);	
+{	
 	
 	  @Value("${direct.config.keystore.keyStorePin:som3randomp!n}")	
 	  private String keyStorePin;
@@ -47,7 +46,7 @@ public class KeyStoreConfig
 	  @ConditionalOnProperty(name="direct.config.keystore.hsmpresent", havingValue="true")
 	  public KeyStoreProtectionManager hsmKeyStoreProtectionManager()
 	  {
-		  LOGGER.info("HSM configured.  Attempting to connect to device.");
+		  log.info("HSM configured.  Attempting to connect to device.");
 		  
 		  try
 		  {

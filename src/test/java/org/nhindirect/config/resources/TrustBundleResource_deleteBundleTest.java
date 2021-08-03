@@ -1,19 +1,20 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.TrustBundle;
@@ -212,7 +213,9 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 
 						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
 						
-						when(mockDAO.findByBundleNameIgnoreCase((String)any())).thenReturn(Mono.just(new org.nhindirect.config.store.TrustBundle()));
+						org.nhindirect.config.store.TrustBundle bundle = new org.nhindirect.config.store.TrustBundle();
+						bundle.setBundleName("Test");
+						when(mockDAO.findByBundleNameIgnoreCase((String)any())).thenReturn(Mono.just(bundle));
 						doThrow(new RuntimeException()).when(mockDAO).deleteById((Long)any());
 						
 						bundleService.setTrustBundleRepository(mockDAO);

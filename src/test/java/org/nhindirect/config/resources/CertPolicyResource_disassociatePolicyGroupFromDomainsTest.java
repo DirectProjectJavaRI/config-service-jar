@@ -1,16 +1,17 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
@@ -274,8 +275,11 @@ public class CertPolicyResource_disassociatePolicyGroupFromDomainsTest extends S
 						CertPolicyGroupRepository mockPolicyDAO = mock(CertPolicyGroupRepository.class);
 						CertPolicyGroupDomainReltnRepository mockDomainDAO = mock(CertPolicyGroupDomainReltnRepository.class);
 						
-						when(mockPolicyDAO.findByPolicyGroupNameIgnoreCase("Group1")).thenReturn(Mono.just(new org.nhindirect.config.store.CertPolicyGroup()));
-						doThrow(new RuntimeException()).when(mockDomainDAO).deleteByCertPolicyGroupId(any());
+						final org.nhindirect.config.store.CertPolicyGroup group = new org.nhindirect.config.store.CertPolicyGroup();
+						group.setPolicyGroupName("Test");
+						
+						when(mockPolicyDAO.findByPolicyGroupNameIgnoreCase("Group1")).thenReturn(Mono.just(group));
+						doThrow(new RuntimeException()).when(mockDomainDAO).deleteByPolicyGroupId(any());
 						
 						certService.setCertPolicyGroupRepository(mockPolicyDAO);
 						certService.setCertPolicyGroupDomainReltnRepository(mockDomainDAO);

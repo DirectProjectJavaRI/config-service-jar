@@ -1,17 +1,17 @@
 package org.nhindirect.config.resources;
 
-import static org.mockito.Matchers.eq;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
-import java.util.ArrayList;
+import org.junit.jupiter.api.Test;
+
 import java.util.Collection;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
@@ -23,6 +23,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 {
@@ -71,16 +72,11 @@ public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 					throw new HttpClientErrorException(resp.getStatusCode());
 			}
 			
-			final ResponseEntity<Collection<Address>> getAddresses = testRestTemplate.exchange("/address/domain/" + getDomainNameToGet(), HttpMethod.GET, null, 
-					new ParameterizedTypeReference<Collection<Address>>() {});
-			
-			
-			if (getAddresses.getStatusCodeValue() == 404 || getAddresses.getStatusCodeValue() == 204)
-				doAssertions(new ArrayList<Address>());
-			else if (getAddresses.getStatusCodeValue() != 200)
-				throw new HttpClientErrorException(getAddresses.getStatusCode());
-			else
-				doAssertions(getAddresses.getBody());
+			final Collection<Address> addrs = webClient.get()
+			.uri(uriBuilder ->  uriBuilder.path("address/domain/{dom}").build(getDomainNameToGet()))
+			.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Address>>() {}).block();
+
+			doAssertions(addrs);
 
 			
 		}
@@ -175,9 +171,11 @@ public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 			}
 			
 			@Override
-			protected void doAssertions(Collection<Address> addresses) throws Exception
+			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(addresses.isEmpty());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(404, ex.getRawStatusCode());
 			}
 		}.perform();
 	}	
@@ -268,8 +266,8 @@ public class AddressResource_getAddressesByDomainTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getRawStatusCode());
 			}
 		}.perform();

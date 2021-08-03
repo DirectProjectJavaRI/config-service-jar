@@ -1,16 +1,17 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
@@ -20,6 +21,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class SettingResource_getAllSettingsTest extends SpringBaseTest
 {
@@ -52,17 +54,12 @@ public class SettingResource_getAllSettingsTest extends SpringBaseTest
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
-				
-					
-				final ResponseEntity<Collection<Setting>> getSettings = testRestTemplate.exchange("/setting", HttpMethod.GET, null, 
-						new ParameterizedTypeReference<Collection<Setting>>() {});
 
-				if (getSettings.getStatusCodeValue() == 404 || getSettings.getStatusCodeValue() == 204)
-					doAssertions(new ArrayList<>());
-				else if (getSettings.getStatusCodeValue() != 200)
-					throw new HttpClientErrorException(getSettings.getStatusCode());
-				else
-					doAssertions(getSettings.getBody());									
+				final Collection<Setting> getSettings = webClient.get()
+						.uri("setting")
+						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Setting>>() {}).block();
+					
+				doAssertions(getSettings);									
 
 			}
 				
@@ -186,8 +183,8 @@ public class SettingResource_getAllSettingsTest extends SpringBaseTest
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();

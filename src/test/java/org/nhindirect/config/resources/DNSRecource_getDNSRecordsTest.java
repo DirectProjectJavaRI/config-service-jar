@@ -1,18 +1,19 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
@@ -25,6 +26,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.xbill.DNS.Type;
 
@@ -103,15 +105,11 @@ public class DNSRecource_getDNSRecordsTest extends SpringBaseTest
 				if (getNameToRetrieve() != null)
 					builder.queryParam("name", getNameToRetrieve());
 
-				final ResponseEntity<Collection<DNSRecord>> records = 
-						testRestTemplate.exchange(builder.toUriString(), HttpMethod.GET, null, new ParameterizedTypeReference<Collection<DNSRecord>>() {});
-
-				if (records.getStatusCodeValue() == 404 || records.getStatusCodeValue() == 204)
-					doAssertions(new ArrayList<DNSRecord>());
-				else if (records.getStatusCodeValue() != 200)
-					throw new HttpClientErrorException(records.getStatusCode());
-				else
-					doAssertions(records.getBody());					
+				final Collection<DNSRecord> records = webClient.get()
+						.uri(builder.toUriString())
+						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<DNSRecord>>() {}).block();
+				
+				doAssertions(records);					
 		
 			}
 				
@@ -386,8 +384,8 @@ public class DNSRecource_getDNSRecordsTest extends SpringBaseTest
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(400, ex.getRawStatusCode());
 				}
 			}.perform();

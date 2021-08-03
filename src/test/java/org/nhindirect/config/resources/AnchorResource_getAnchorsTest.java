@@ -1,17 +1,18 @@
 package org.nhindirect.config.resources;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.junit.Test;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
@@ -24,6 +25,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class AnchorResource_getAnchorsTest extends SpringBaseTest
 {
@@ -57,20 +59,15 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 				});
 			}
 			
+			final Collection<Anchor> getAnchors = webClient.get()
+			.uri(uriBuilder ->  uriBuilder.path("/anchor/").build())
+			.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Anchor>>() {}).block();
 
-			final ResponseEntity<Collection<Anchor>> getAnchors = 
-					testRestTemplate.exchange("/anchor", HttpMethod.GET, null, new ParameterizedTypeReference<Collection<Anchor>>() {});
-
-			if (getAnchors.getStatusCodeValue() == 404 || getAnchors.getStatusCodeValue() == 204)
-				doAssertions(new ArrayList<>(), getAnchors.getStatusCodeValue());
-			else if (getAnchors.getStatusCodeValue() != 200)
-				throw new HttpClientErrorException(getAnchors.getStatusCode());
-			else
-				doAssertions(getAnchors.getBody(), getAnchors.getStatusCodeValue());
+			doAssertions(getAnchors);
 			
 		}
 			
-		protected void doAssertions(Collection<Anchor> anchors, int statusCode) throws Exception
+		protected void doAssertions(Collection<Anchor> anchors) throws Exception
 		{
 			
 		}
@@ -120,9 +117,8 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 
 			
 			@Override
-			protected void doAssertions(Collection<Anchor> anchors, int statusCode)
+			protected void doAssertions(Collection<Anchor> anchors)
 			{
-				assertEquals(200, statusCode);
 				
 				assertNotNull(anchors);
 				assertEquals(2, anchors.size());
@@ -157,9 +153,8 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 			}
 
 			@Override
-			protected void doAssertions(Collection<Anchor> anchors, int statusCode)
+			protected void doAssertions(Collection<Anchor> anchors)
 			{
-				assertEquals(200, statusCode);
 				assertNotNull(anchors);
 				assertTrue(anchors.isEmpty());
 				
@@ -208,8 +203,8 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getRawStatusCode());
 			}
 		}.perform();

@@ -21,13 +21,11 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.resources;
 
-import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.nhindirect.common.cert.Thumbprint;
 import org.nhindirect.common.crypto.KeyStoreProtectionManager;
 import org.nhindirect.config.model.Certificate;
@@ -39,16 +37,17 @@ import org.nhindirect.config.store.util.CertificateUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -61,10 +60,9 @@ import reactor.core.publisher.Mono;
  */
 @RestController
 @RequestMapping("certificate")
+@Slf4j
 public class CertificateResource extends ProtectedResource
-{	
-    private static final Log log = LogFactory.getLog(CertificateResource.class);
-    
+{   
     protected CertificateRepository certRepo;
     
     private KeyStoreProtectionManager kspMgr;
@@ -99,7 +97,7 @@ public class CertificateResource extends ProtectedResource
      * exist.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Flux<Certificate>> getAllCertificates()
+    public Flux<Certificate> getAllCertificates()
     {
 		
 		return getCertificatesByOwner(null);
@@ -112,27 +110,21 @@ public class CertificateResource extends ProtectedResource
      * exist for the owner.
      */
     @GetMapping(value="/{owner}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Flux<Certificate>> getCertificatesByOwner(@PathVariable("owner") String owner)
+    public Flux<Certificate> getCertificatesByOwner(@PathVariable("owner") String owner)
     {  	    	
-    	try
-    	{ 	
-    		final Flux<org.nhindirect.config.store.Certificate> lookupFlux = 
-    				(StringUtils.isEmpty(owner)) ? certRepo.findAll() : certRepo.findByOwnerIgnoreCase(owner);	
-    		
-    		final Flux<Certificate> retVal = lookupFlux
-    		    			.map(cert -> 
-    		    			{
-    		    				CertificateUtils.stripP12Protection(cert, this.kspMgr);
-    		    				return EntityModelConversion.toModelCertificate(cert);	
-    		    			});  
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up certificates.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	} 	
+		final Flux<org.nhindirect.config.store.Certificate> lookupFlux = 
+				(StringUtils.isEmpty(owner)) ? certRepo.findAll() : certRepo.findByOwnerIgnoreCase(owner);	
+		
+		return lookupFlux
+			.map(cert -> 
+			{
+				CertificateUtils.stripP12Protection(cert, this.kspMgr);
+				return EntityModelConversion.toModelCertificate(cert);	
+			})
+   	     	.onErrorResume(e -> { 
+   	    		log.error("Error looking up certificates.", e);
+   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+   	    	});
     }  
     
     /**
@@ -143,55 +135,43 @@ public class CertificateResource extends ProtectedResource
      * if no matching certificate is found.
      */
     @GetMapping(value="/{owner}/{thumbprint}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Mono<Certificate>> getCertificatesByOwnerAndThumbprint(@PathVariable("owner") String owner, 
+    public Mono<?> getCertificatesByOwnerAndThumbprint(@PathVariable("owner") String owner, 
     		@PathVariable("thumbprint") String thumbprint)
     {
-    	org.nhindirect.config.store.Certificate retCertificate = null;
-    	
-    	owner = owner.trim();
-    	
-    	List<org.nhindirect.config.store.Certificate> retCertificates = null;
-    	
-    	try
-    	{
-    		if (StringUtils.isEmpty(owner) && StringUtils.isEmpty(thumbprint))
-    			retCertificates = certRepo.findAll().collectList().block();
-            else if (!StringUtils.isEmpty(owner) && StringUtils.isEmpty(thumbprint))
-            	retCertificates = certRepo.findByOwnerIgnoreCase(owner).collectList().block();
-            else if (StringUtils.isEmpty(owner) && !StringUtils.isEmpty(thumbprint))
-            	retCertificates = certRepo.findByThumbprint(thumbprint).collectList().block();		
-            else
-            {
-            	retCertificates = new ArrayList<>();
-            	List<org.nhindirect.config.store.Certificate> potentialCerts = certRepo.findByThumbprint(thumbprint).collectList().block();
+		Mono<List<org.nhindirect.config.store.Certificate>> retCertificates = null;
+		
+		if (StringUtils.isEmpty(owner) && StringUtils.isEmpty(thumbprint))
+			retCertificates = certRepo.findAll().collectList();
+        else if (!StringUtils.isEmpty(owner) && StringUtils.isEmpty(thumbprint))
+        	retCertificates = certRepo.findByOwnerIgnoreCase(owner).collectList();
+        else if (StringUtils.isEmpty(owner) && !StringUtils.isEmpty(thumbprint))
+        	retCertificates = certRepo.findByThumbprint(thumbprint).collectList();		
+        else
+        {
 
-            	if (!potentialCerts.isEmpty())
-            	{
-            		for (org.nhindirect.config.store.Certificate cert : potentialCerts)
-            			if (cert.getOwner().equalsIgnoreCase(owner))
-            				retCertificates.add(cert);
-            	}
-            }
-            	
-    		if (retCertificates == null || retCertificates.isEmpty())
-    		{
-    			return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(noCache).build();
-    		}
-    			
-            for (org.nhindirect.config.store.Certificate cert : retCertificates)
+        	retCertificates = certRepo.findByThumbprint(thumbprint)
+        	.filter(cert -> cert.getOwner().equalsIgnoreCase(owner))
+           	.collectList();
+        }
+        	
+		return retCertificates
+		.switchIfEmpty(Mono.just(Collections.emptyList()))
+       	.flatMap(certs ->
+       	{
+       		if (certs.isEmpty())
+       			return Mono.empty();
+       		
+            for (org.nhindirect.config.store.Certificate cert : certs)
             	CertificateUtils.stripP12Protection(cert, this.kspMgr);
-
-            retCertificate = retCertificates.iterator().next();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up certificate.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-
-		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache)
-				.body(Mono.just(EntityModelConversion.toModelCertificate(retCertificate))); 
-    }  
+            
+            return Mono.just(EntityModelConversion.toModelCertificate(certs.iterator().next()));
+            
+       	})
+     	.onErrorResume(e -> { 
+    		log.error("Error looking up certificates.", e);
+    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+    	});
+    }
     
     /**
      * Adds a certificate to the system.
@@ -199,8 +179,9 @@ public class CertificateResource extends ProtectedResource
      * @param cert The certificate to add.
      * @return Returns a status of 201 if the certificate was added or a status of 409 if the certificate already exists.
      */
-    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)       
-    public ResponseEntity<Mono<Void>> addCertificate(@RequestBody Certificate cert)
+    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)  
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<Void> addCertificate(@RequestBody Certificate cert)
     {
     	CertContainer cont = null;
 		cont = CertUtils.toCertContainer(cert.getData());
@@ -218,37 +199,46 @@ public class CertificateResource extends ProtectedResource
 			}
 		}
     	
-    	// check to see if it already exists
-
-    	try
-    	{    		
-    		if (certRepo.findByOwnerIgnoreCaseAndThumbprint(cert.getOwner(), Thumbprint.toThumbprint(cont.getCert()).toString()).block() != null)
-    			return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up certificate.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    
-    	try
-    	{	
-			org.nhindirect.config.store.Certificate entCert = EntityModelConversion.toEntityCertificate(cert);
-			entCert = CertificateUtils.applyCertRepositoryAttributes(entCert, kspMgr);
-			entCert.setId(null);
-			
-    		certRepo.save(entCert).block();
-    		
-    		final URI uri = new UriTemplate("/{certificate}").expand("certificate/" + entCert.getOwner());
-    		
-    		return ResponseEntity.created(uri).cacheControl(noCache).build();
-    		
-    	}
-    	catch (Exception e)
-    	{
+		
+		try
+		{
+		
+		return certRepo.findByOwnerIgnoreCaseAndThumbprint(cert.getOwner(), Thumbprint.toThumbprint(cont.getCert()).toString())
+				.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Certificate()))
+				.flatMap(lookupCert -> 
+				{
+					if (lookupCert.getData() != null)
+					{
+			    		log.error("Certificate already exists");
+			    		return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+					}
+					try
+					{
+						org.nhindirect.config.store.Certificate entCert = EntityModelConversion.toEntityCertificate(cert);
+						entCert = CertificateUtils.applyCertRepositoryAttributes(entCert, kspMgr);
+						entCert.setId(null);
+						
+						return certRepo.save(entCert)
+							.then()
+					     	.onErrorResume(e -> { 
+					    		log.error("Error adding certificate.", e);
+					    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+					    	});
+					}
+					catch (Exception e)
+					{
+			    		log.error("Error adding certificate.", e);
+			    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+					}					
+					
+				});
+		}
+		catch (Exception e)
+		{
     		log.error("Error adding certificate.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		}
+
     }
     
     /**
@@ -257,26 +247,20 @@ public class CertificateResource extends ProtectedResource
      * @return Status of 200 if the certificates were deleted.
      */
     @DeleteMapping(value="ids/{ids}")   
-    public ResponseEntity<Mono<Void>> removeCertificatesByIds(@PathVariable("ids") String ids)
+    public Mono<Void> removeCertificatesByIds(@PathVariable("ids") String ids)
     {
     	final String[] idArray = ids.split(",");
     	final List<Long> idList = new ArrayList<>();
     	
+		for (String id : idArray)
+			idList.add(Long.parseLong(id));
     	
-    	try
-    	{
-    		for (String id : idArray)
-    			idList.add(Long.parseLong(id));
-    		
-    		certRepo.deleteByIdIn(idList).block();
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error removing certificates by ids.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+		return certRepo.deleteByIdIn(idList)
+		     	.onErrorResume(e -> { 
+		    		log.error("Error removing anchors by ids.", e);
+		    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		    	});	
+    	
     }
     
     /**
@@ -285,19 +269,13 @@ public class CertificateResource extends ProtectedResource
      * @return Status of 200 if the certificates were deleted.
      */
     @DeleteMapping(value="{owner}")  
-    public ResponseEntity<Mono<Void>> removeCertificatesByOwner(@PathVariable("owner") String owner)
+    public Mono<Void> removeCertificatesByOwner(@PathVariable("owner") String owner)
     {
-    	try
-    	{
-    		certRepo.deleteByOwnerIgnoreCase(owner).block();
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error removing certificates by owner.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+		return certRepo.deleteByOwnerIgnoreCase(owner)
+		     	.onErrorResume(e -> { 
+		    		log.error("Error removing certificates by owner.", e);
+		    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		    	});	
     }   
 
 }

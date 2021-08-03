@@ -21,13 +21,11 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.resources;
 
-import java.net.URI;
+import java.security.cert.CertificateException;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.nhindirect.common.cert.Thumbprint;
 import org.nhindirect.config.model.Anchor;
 import org.nhindirect.config.repository.AnchorRepository;
@@ -35,7 +33,6 @@ import org.nhindirect.config.resources.util.EntityModelConversion;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,9 +40,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -58,9 +57,9 @@ import reactor.core.publisher.Mono;
  */
 @RestController
 @RequestMapping("anchor")
+@Slf4j
 public class AnchorResource extends ProtectedResource
 {
-    private static final Log log = LogFactory.getLog(AnchorResource.class);
     
     protected AnchorRepository anchorRepo;
     
@@ -94,32 +93,19 @@ public class AnchorResource extends ProtectedResource
      * anchors exist for the owner.
      */      
     @GetMapping(value="/{owner}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Flux<Anchor>> getAnchorForOwner(@RequestParam(name="incoming", defaultValue="false") boolean incoming, 
+    public Flux<Anchor> getAnchorForOwner(@RequestParam(name="incoming", defaultValue="false") boolean incoming, 
     		@RequestParam(name="outgoing", defaultValue="false") boolean outgoing, 
     		@RequestParam(name="thumbprint", defaultValue="") String thumbprint, 
     		@PathVariable("owner") String owner)
     {
-    	
-    	try
-    	{
-    		
-    		
-    		final Flux<Anchor> retVal = anchorRepo.findByOwnerIgnoreCase(owner)
-    				.filter(anchor -> !((incoming && !anchor.isIncoming()) || (outgoing && !anchor.isOutgoing()) ||
-    	    				(!thumbprint.isEmpty() && !thumbprint.equalsIgnoreCase(anchor.getThumbprint()))))
-    				.map(anchor -> {
-    					return EntityModelConversion.toModelAnchor(anchor);			
-    				});
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up anchors.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    
-
+		return anchorRepo.findByOwnerIgnoreCase(owner)
+				.filter(anchor -> !((incoming && !anchor.isIncoming()) || (outgoing && !anchor.isOutgoing()) ||
+	    				(!thumbprint.isEmpty() && !thumbprint.equalsIgnoreCase(anchor.getThumbprint()))))
+				.map(anchor -> EntityModelConversion.toModelAnchor(anchor))		
+	   	     	.onErrorResume(e -> { 
+	   	    		log.error("Error looking up anchors.", e);
+	   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+	   	    	});
     }
     
     /**
@@ -127,23 +113,14 @@ public class AnchorResource extends ProtectedResource
      * @return A JSON representation of a collection of all anchors in the system.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Flux<Anchor>> getAnchors()
+    public Flux<Anchor> getAnchors()
     {
-
-    	try
-    	{
-    		final Flux<Anchor> retVal= anchorRepo.findAll()
-    				.map(anchor -> {
-    					return EntityModelConversion.toModelAnchor(anchor);
-    				});
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).body(retVal);
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error looking up anchors.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}	
+		return anchorRepo.findAll()
+				.map(anchor -> EntityModelConversion.toModelAnchor(anchor))
+	   	     	.onErrorResume(e -> { 
+	   	    		log.error("Error looking up anchors.", e);
+	   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+	   	    	});	
     }
     
     /**
@@ -153,46 +130,50 @@ public class AnchorResource extends ProtectedResource
      * @return Returns a status of 201 if the anchor was added, or a status of 409 if the anchor already exists for 
      * a specific owner.
      */
-    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)     
-    public ResponseEntity<Mono<Void>> addAnchor(@RequestBody Anchor anchor) 
+    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)   
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<Void> addAnchor(@RequestBody Anchor anchor) 
     {
-    	// check to see if it already exists
+
     	try
     	{
-    		final String thumbprint = (anchor.getThumbprint() == null || anchor.getThumbprint().isEmpty()) ?
-    				Thumbprint.toThumbprint(anchor.getAnchorAsX509Certificate()).toString() : anchor.getThumbprint();
-    				
-    		final Collection<org.nhindirect.config.store.Anchor> existingAnchors = anchorRepo.findByOwnerIgnoreCase(anchor.getOwner()).collectList().block();
-    		
-    		for (org.nhindirect.config.store.Anchor existingAnchor : existingAnchors)
-    		{
-    			if (existingAnchor.getThumbprint().equalsIgnoreCase(thumbprint))
-    				return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(noCache).build();
-    		}
-    	}
-    	catch (Exception e)
+			final String thumbprint = (anchor.getThumbprint() == null || anchor.getThumbprint().isEmpty()) ?
+					Thumbprint.toThumbprint(anchor.getAnchorAsX509Certificate()).toString() : anchor.getThumbprint();
+					
+			//final Collection<org.nhindirect.config.store.Anchor> existingAnchors = 
+			return anchorRepo.findByOwnerIgnoreCase(anchor.getOwner())
+					.filter(existingAnchor -> existingAnchor.getThumbprint().equalsIgnoreCase(thumbprint))
+					.collectList()
+					.switchIfEmpty(Mono.just(Collections.emptyList()))
+					.flatMap(anchors -> 
+					{
+						if (!anchors.isEmpty())
+							return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+						
+			    		try
+			    		{
+							final org.nhindirect.config.store.Anchor addAnchor = EntityModelConversion.toEntityAnchor(anchor);
+				    		addAnchor.setId(null);
+				    		
+				    		return anchorRepo.save(addAnchor)
+				    		.then()
+		    	   	     	.onErrorResume(e -> { 
+		    	   	    		log.error("Error adding anchor.", e);
+		    	   	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		    	   	    	});	
+			    		}
+			    		catch (Exception e)
+			    		{
+				    		log.error("Error converting anchor.", e);
+				    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+			    		}
+					});
+    	} 
+    	catch (CertificateException ex) 
     	{
-    		log.error("Error looking up existing anchor.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
-    	try
-    	{
-    		org.nhindirect.config.store.Anchor addAnchor = EntityModelConversion.toEntityAnchor(anchor);
-    		addAnchor.setId(null);
-    		
-    		anchorRepo.save(addAnchor).block();
-    		
-    		final URI uri = new UriTemplate("/{address}").expand("anchor/" + anchor.getOwner());
-    		
-    		return ResponseEntity.created(uri).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
-    		log.error("Error adding anchor.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
-    	
+	    		log.error("Error converting query thubmprint.", ex);
+	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		}
     }
    
     /**
@@ -201,24 +182,20 @@ public class AnchorResource extends ProtectedResource
      * @return Status of 200 if the anchors were deleted successfully.
      */
     @DeleteMapping(value="ids/{ids}")   
-    public ResponseEntity<Mono<Void>> removeAnchorsByIds(@PathVariable("ids")  String ids)
+    public Mono<Void> removeAnchorsByIds(@PathVariable("ids")  String ids)
     {
     	final String[] idArray = ids.split(",");
     	final List<Long> idList = new ArrayList<>();
-    	try
-    	{
-    		for (String id : idArray)
-    			idList.add(Long.parseLong(id));
-    		
-    		anchorRepo.deleteByIdIn(idList).block();
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
+
+		for (String id : idArray)
+			idList.add(Long.parseLong(id));
+		
+		return anchorRepo.deleteByIdIn(idList)
+     	.onErrorResume(e -> { 
     		log.error("Error removing anchors by ids.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+    	});	
+
     }
     
     /**
@@ -227,18 +204,13 @@ public class AnchorResource extends ProtectedResource
      * @return Status of 200 if the anchors were deleted successfully.
      */
     @DeleteMapping(value="{owner}")  
-    public ResponseEntity<Mono<Void>> removeAnchorsByOwner(@PathVariable("owner") String owner)
+    public Mono<Void> removeAnchorsByOwner(@PathVariable("owner") String owner)
     {
-    	try
-    	{
-    		anchorRepo.deleteByOwnerIgnoreCase(owner).block();
-    		
-    		return ResponseEntity.status(HttpStatus.OK).cacheControl(noCache).build();
-    	}
-    	catch (Exception e)
-    	{
+		return anchorRepo.deleteByOwnerIgnoreCase(owner)
+     	.onErrorResume(e -> { 
     		log.error("Error removing anchors by owner.", e);
-    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).cacheControl(noCache).build();
-    	}
+    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+    	});	
+
     }
 }

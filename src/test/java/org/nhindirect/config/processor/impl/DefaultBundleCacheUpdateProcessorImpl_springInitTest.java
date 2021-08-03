@@ -1,16 +1,15 @@
 package org.nhindirect.config.processor.impl;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.util.Calendar;
 
 import org.apache.commons.io.FileUtils;
-
-import org.junit.Test;
 
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.TrustBundle;
@@ -19,8 +18,6 @@ import org.nhindirect.config.processor.BundleCacheUpdateProcessor;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
 import org.nhindirect.config.resources.TrustBundleResource;
 import org.springframework.beans.factory.annotation.Autowired;
-
-import org.springframework.http.ResponseEntity;
 
 import reactor.core.publisher.Mono;
 
@@ -55,10 +52,12 @@ public class DefaultBundleCacheUpdateProcessorImpl_springInitTest extends Spring
 		bundle.setBundleName("Test Bundle");
 		bundle.setBundleURL(filePrefix + bundleLocation.getAbsolutePath());
 		
-		trustService.addTrustBundle(bundle);
+		webClient.put().uri("trustbundle/")
+		.body(Mono.just(bundle), TrustBundle.class)
+		.retrieve().bodyToMono(String.class).block();
 		
-		final ResponseEntity<Mono<TrustBundle>> addedBundle = trustService.getTrustBundleByName("Test Bundle");
-		final TrustBundle addBundle = addedBundle.getBody().block();
+		final Mono<TrustBundle> addedBundle = trustService.getTrustBundleByName("Test Bundle");
+		final TrustBundle addBundle = addedBundle.block();
 		
 		assertNotNull(addBundle);
 		
@@ -77,19 +76,21 @@ public class DefaultBundleCacheUpdateProcessorImpl_springInitTest extends Spring
 		bundle.setBundleName("Test Bundle");
 		bundle.setBundleURL(filePrefix + bundleLocation.getAbsolutePath());
 		
-		trustService.addTrustBundle(bundle);
+		webClient.put().uri("trustbundle/")
+		.body(Mono.just(bundle), TrustBundle.class)
+		.retrieve().bodyToMono(String.class).block();
 		
-		final ResponseEntity<Mono<TrustBundle>> addedBundle = trustService.getTrustBundleByName("Test Bundle");
-		final TrustBundle addBundle = addedBundle.getBody().block();
+		final Mono<TrustBundle> addedBundle = trustService.getTrustBundleByName("Test Bundle");
+		final TrustBundle addBundle = addedBundle.block();
 		assertTrue(addBundle.getTrustBundleAnchors().size() > 0);	
 		final Calendar lastRefreshAttemp = addBundle.getLastRefreshAttempt();
 		final Calendar lastSuccessfulRefresh = addBundle.getLastSuccessfulRefresh();
 		
 		// now refresh
-		trustService.refreshTrustBundle(addBundle.getBundleName());
+		trustService.refreshTrustBundle(addBundle.getBundleName()).block();
 		
-		final ResponseEntity<Mono<TrustBundle>> refreshedBundle = trustService.getTrustBundleByName("Test Bundle");
-		final TrustBundle refreshBunle = refreshedBundle.getBody().block();
+		final Mono<TrustBundle> refreshedBundle = trustService.getTrustBundleByName("Test Bundle");
+		final TrustBundle refreshBunle = refreshedBundle.block();
 		assertEquals(lastSuccessfulRefresh.getTimeInMillis(), refreshBunle.getLastSuccessfulRefresh().getTimeInMillis());
 		assertTrue(refreshBunle.getLastRefreshAttempt().getTimeInMillis() > lastRefreshAttemp.getTimeInMillis());
 	}
@@ -109,25 +110,28 @@ public class DefaultBundleCacheUpdateProcessorImpl_springInitTest extends Spring
 		bundle.setBundleName("Test Bundle");
 		bundle.setBundleURL(filePrefix + targetTempFileLocation.getAbsolutePath());
 		
-		trustService.addTrustBundle(bundle);
+		webClient.put().uri("trustbundle/")
+		.body(Mono.just(bundle), TrustBundle.class)
+		.retrieve().bodyToMono(String.class).block();
 		
-		final ResponseEntity<Mono<TrustBundle>> addedBundle = trustService.getTrustBundleByName("Test Bundle");
-		final TrustBundle addBundle = addedBundle.getBody().block();
+		
+		final Mono<TrustBundle> addedBundle = trustService.getTrustBundleByName("Test Bundle");
+		final TrustBundle addBundle = addedBundle.block();
 		
 		
 		assertTrue(addBundle.getTrustBundleAnchors().size() > 0);
 		
 		// validate the contents of the bundle
-		final ResponseEntity<Mono<TrustBundle>> firstBundleInsert = trustService.getTrustBundleByName("Test Bundle");
-		assertEquals(1, firstBundleInsert.getBody().block().getTrustBundleAnchors().size());
+		final Mono<TrustBundle> firstBundleInsert = trustService.getTrustBundleByName("Test Bundle");
+		assertEquals(1, firstBundleInsert.block().getTrustBundleAnchors().size());
 		
 		// copy in the new bundle
 		FileUtils.copyFile(updatedBundleLocation, targetTempFileLocation);
 		
 		// now refresh
-		trustService.refreshTrustBundle(addBundle.getBundleName());
+		trustService.refreshTrustBundle(addBundle.getBundleName()).block();
 		
-		final ResponseEntity<Mono<TrustBundle>> refreshedBundle = trustService.getTrustBundleByName("Test Bundle");
-		assertEquals(6, refreshedBundle.getBody().block().getTrustBundleAnchors().size());
+		final Mono<TrustBundle> refreshedBundle = trustService.getTrustBundleByName("Test Bundle");
+		assertEquals(6, refreshedBundle.block().getTrustBundleAnchors().size());
 	}
 }

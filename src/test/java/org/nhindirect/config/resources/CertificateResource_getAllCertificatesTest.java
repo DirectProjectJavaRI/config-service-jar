@@ -1,10 +1,12 @@
 package org.nhindirect.config.resources;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.security.cert.X509Certificate;
@@ -13,7 +15,7 @@ import java.util.Collection;
 import java.util.Iterator;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.Test;
+
 import org.nhindirect.common.cert.Thumbprint;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
@@ -29,6 +31,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 
 public class CertificateResource_getAllCertificatesTest extends SpringBaseTest
@@ -65,15 +68,14 @@ public class CertificateResource_getAllCertificatesTest extends SpringBaseTest
 				}
 				
 
-				final ResponseEntity<Collection<Certificate>> getCertificates = 
-						testRestTemplate.exchange("/certificate", HttpMethod.GET, null, new ParameterizedTypeReference<Collection<Certificate>>() {});
+				final Collection<Certificate> certs = webClient.get()
+				        .uri("/certificate")
+				        .retrieve()
+				        .bodyToMono(new ParameterizedTypeReference<Collection<Certificate>>() {})
+				        .defaultIfEmpty(new ArrayList<Certificate>()).block();
+				
 
-				if (getCertificates.getStatusCodeValue() == 404 || getCertificates.getStatusCodeValue() == 204)
-					doAssertions(new ArrayList<>());
-				else if (getCertificates.getStatusCodeValue() != 200)
-					throw new HttpClientErrorException(getCertificates.getStatusCode());
-				else
-					doAssertions(getCertificates.getBody());
+				doAssertions(certs);
 
 				
 			}
@@ -269,8 +271,8 @@ public class CertificateResource_getAllCertificatesTest extends SpringBaseTest
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getRawStatusCode());
 				}
 			}.perform();
