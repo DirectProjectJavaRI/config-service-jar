@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.nhind</groupId>
 	<artifactId>config-service-jar</artifactId>
-	<version>8.0.0-SNAPSHOT</version>
+	<version>8.0.0</version>
 	<packaging>jar</packaging>
 	<name>NHIN Direct Java RI config service jar</name>
     <description>NHIN Direct Java RI config service jar.</description>	
@@ -58,17 +58,17 @@
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>config-store</artifactId>
-			<version>8.0.0-SNAPSHOT</version>
+			<version>8.0.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>config-model</artifactId>
-			<version>8.0.0-SNAPSHOT</version>
+			<version>8.0.0</version>
 		</dependency>		
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>direct-common</artifactId>
-			<version>8.0.0-SNAPSHOT</version>	
+			<version>8.0.0</version>	
 		</dependency>											  
 	      <dependency>
 			<groupId>commons-net</groupId>
@@ -173,7 +173,8 @@
 	                </goals>
 	              </execution>
 	            </executions>					
-			</plugin>					
+			</plugin>	
+			<!--  for releases only				
 	        <plugin>
                <groupId>org.apache.maven.plugins</groupId>
                <artifactId>maven-gpg-plugin</artifactId>
@@ -188,6 +189,7 @@
                </executions>
                <version>3.0.1</version>
             </plugin>		
+            -->
 		</plugins>			
 	</build>
 	<reporting>
