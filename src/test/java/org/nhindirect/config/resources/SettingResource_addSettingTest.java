@@ -19,6 +19,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
 import org.nhindirect.config.repository.SettingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
@@ -37,6 +38,11 @@ public class SettingResource_addSettingTest extends SpringBaseTest
 
 			}
 
+			protected boolean useEntityRequestObject()
+			{
+				return false;
+			}
+			
 			protected abstract Collection<Setting> getSettingsToAdd();
 			
 			@Override
@@ -49,8 +55,19 @@ public class SettingResource_addSettingTest extends SpringBaseTest
 				{
 					settingsToAdd.forEach(addSetting->
 					{
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.PUT, null, Void.class,
+						ResponseEntity<Void> resp = null;
+						
+						if (!useEntityRequestObject())
+						{
+							resp = testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.PUT, null, Void.class,
 								addSetting.getName(), addSetting.getValue());
+						}
+						else
+						{
+							HttpEntity<Setting> requestEntity = new HttpEntity<Setting>(addSetting);
+							resp = testRestTemplate.exchange("/setting", HttpMethod.PUT, requestEntity, Void.class);
+						}
+						
 						if (resp.getStatusCodeValue() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
@@ -115,6 +132,102 @@ public class SettingResource_addSettingTest extends SpringBaseTest
 				}
 			}.perform();
 		}		
+		
+		@Test
+		public void testAddSettingWithSlashName_useTemplateParameters_assertSettingAdded() throws Exception
+		{
+			new TestPlan()
+			{
+				protected Collection<Setting> settings;
+				
+				@Override
+				protected Collection<Setting> getSettingsToAdd()
+				{
+
+					settings = new ArrayList<Setting>();
+					
+					Setting setting = new Setting();					
+					setting.setName("setting1/setting1");
+					setting.setValue("value1");
+					settings.add(setting);
+					
+					return settings;
+
+				}
+
+				
+				@Override
+				protected void doAssertions() throws Exception
+				{
+					Collection<org.nhindirect.config.store.Setting> retrievedSettings = settingRepo.findAll().collectList().block();
+					
+					assertNotNull(retrievedSettings);
+					assertEquals(this.settings.size(), retrievedSettings.size());
+					
+					final Iterator<Setting> addedSettingsIter = this.settings.iterator();
+					
+					for (org.nhindirect.config.store.Setting retrievedSetting : retrievedSettings)
+					{
+						final Setting addedSetting = addedSettingsIter.next(); 
+						
+						assertEquals(addedSetting.getName(), retrievedSetting.getName());
+						assertEquals(addedSetting.getValue(), retrievedSetting.getValue());
+					}
+					
+				}
+			}.perform();
+		}		
+		
+		@Test
+		public void testAddSettingWithSlashValue_useEntityParameter_assertSettingAdded() throws Exception
+		{
+			new TestPlan()
+			{
+				protected Collection<Setting> settings;
+				
+				@Override
+				protected boolean useEntityRequestObject()
+				{
+					return true;
+				}
+				
+				@Override
+				protected Collection<Setting> getSettingsToAdd()
+				{
+
+					settings = new ArrayList<Setting>();
+					
+					Setting setting = new Setting();					
+					setting.setName("setting1");
+					setting.setValue("value1//value1");
+					settings.add(setting);
+					
+					return settings;
+
+				}
+
+				
+				@Override
+				protected void doAssertions() throws Exception
+				{
+					Collection<org.nhindirect.config.store.Setting> retrievedSettings = settingRepo.findAll().collectList().block();
+					
+					assertNotNull(retrievedSettings);
+					assertEquals(this.settings.size(), retrievedSettings.size());
+					
+					final Iterator<Setting> addedSettingsIter = this.settings.iterator();
+					
+					for (org.nhindirect.config.store.Setting retrievedSetting : retrievedSettings)
+					{
+						final Setting addedSetting = addedSettingsIter.next(); 
+						
+						assertEquals(addedSetting.getName(), retrievedSetting.getName());
+						assertEquals(addedSetting.getValue(), retrievedSetting.getValue());
+					}
+					
+				}
+			}.perform();
+		}			
 		
 		@Test
 		public void testAddSetting_addDuplicate_assertConflict() throws Exception
