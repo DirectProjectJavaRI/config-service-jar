@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -114,7 +115,7 @@ public class SettingResource extends ProtectedResource
     		});
  
     }  
-        
+    
     /**
      * Adds a setting to the system.
      * @param uriInfo Injected URI context used for building the location URI.
@@ -161,6 +162,21 @@ public class SettingResource extends ProtectedResource
        	   });
     }
     
+    
+    /**
+     * Adds a setting to the system.  This is an alternative method for adding settings generally needed for
+     * values that contain characters that would otherwise be determined unsafe as a part of a URL template.
+     * @param Setting The setting argument that holds the name and value
+     * @return Status of 201 if the setting was created or a status of 409 if a setting with the same name
+     * already exists.
+     */
+    @PutMapping()  
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<Void> addSetting(@RequestBody Setting setting)
+    { 
+    	return addSetting(setting.getName(), setting.getValue());
+    }
+    
     /**
      * Updates the value of a setting.
      * @param name The name of the setting to update.
@@ -191,6 +207,19 @@ public class SettingResource extends ProtectedResource
     	   });
     } 
     
+    /**
+     * Updates the value of a setting.  This is an alternative method for adding settings generally needed for
+     * values that contain characters that would otherwise be determined unsafe as a part of a URL template.
+     * @param Setting The setting argument that holds the name and value that is to be updated
+     * @return Status of 204 if the value of the setting was updated or a status of 404 if a setting with the given name
+     * does not exist.
+     */
+    @PostMapping()  
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> updateSetting(@RequestBody Setting setting)
+    {
+    	return updateSetting(setting.getName(), setting.getValue());
+    }
     
     /**
      * Deletes a setting in the system by name.

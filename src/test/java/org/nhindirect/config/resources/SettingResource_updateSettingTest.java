@@ -15,6 +15,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
 import org.nhindirect.config.repository.SettingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
@@ -28,6 +29,11 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 		
 		abstract class TestPlan extends BaseTestPlan 
 		{
+			protected boolean useEntityRequestObject()
+			{
+				return false;
+			}
+			
 			protected Setting addedSetting;
 			
 			@Override
@@ -57,9 +63,18 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 				
 				if (addSetting != null)
 				{
-
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.PUT, null, Void.class,
-							addSetting.getName(), addSetting.getValue());
+					ResponseEntity<Void> resp = null;
+					if (!useEntityRequestObject())
+					{
+						resp = testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.PUT, null, Void.class,
+								addSetting.getName(), addSetting.getValue());
+					}
+					else
+					{
+						HttpEntity<Setting> requestEntity = new HttpEntity<Setting>(addSetting);
+						resp = testRestTemplate.exchange("/setting", HttpMethod.PUT, requestEntity, Void.class);
+					}
+					
 					if (resp.getStatusCodeValue() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 
@@ -115,6 +130,37 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 				}
 			}.perform();
 		}	
+		
+		@Test
+		public void testUpdateSetting_updateExistingSetting_entityParam_assertSettingUpdated() throws Exception
+		{
+			new TestPlan()
+			{
+				@Override
+				protected boolean useEntityRequestObject()
+				{
+					return true;
+				}
+				
+				@Override
+				protected String getSettingNameToUpdate()
+				{
+					return "setting1";
+				}
+				
+				protected String getSettingValueToUpdate()
+				{
+					return "value2//value2";
+				}
+				
+				@Override
+				protected void doAssertions(Setting setting) throws Exception
+				{
+					assertEquals("setting1", setting.getName());
+					assertEquals("value2//value2", setting.getValue());
+				}
+			}.perform();
+		}			
 		
 		@Test
 		public void testUpdateSetting_settingNotFound_assertNotFound() throws Exception
