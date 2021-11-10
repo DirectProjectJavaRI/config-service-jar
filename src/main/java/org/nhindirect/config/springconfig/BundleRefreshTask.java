@@ -14,6 +14,6 @@ public class BundleRefreshTask
 	@Scheduled(fixedRateString = "${direct.trustbundles.refresh.period:3600000}")
 	public void refreshBundles()
 	{
-		updateProcessor.updateBundleCache();
+		updateProcessor.updateBundleCache().block();
 	}
 }
