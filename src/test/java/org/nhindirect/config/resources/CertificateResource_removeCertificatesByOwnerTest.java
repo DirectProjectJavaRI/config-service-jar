@@ -8,11 +8,10 @@ import static org.mockito.Mockito.mock;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.TestUtils;
@@ -137,7 +136,7 @@ public class CertificateResource_removeCertificatesByOwnerTest extends SpringBas
 						certs = new ArrayList<Certificate>();
 						
 						Certificate cert = new Certificate();	
-						byte[] keyData = FileUtils.readFileToByteArray(new File("./src/test/resources/certs/gm2552Key.der"));
+						byte[] keyData = IOUtils.resourceToByteArray("certs/gm2552Key.der", getClass().getClassLoader());
 						
 						cert.setData(CertUtils.certAndWrappedKeyToRawByteFormat(keyData, TestUtils.loadCert("gm2552.der")));
 						
