@@ -5,14 +5,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.io.File;
 import java.util.Collection;
 
 import static org.mockito.Mockito.times;
 import static org.mockito.ArgumentMatchers.any;
 
-
-import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,8 +30,6 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 	protected TrustBundleRepository repo;
 	protected TrustBundleAnchorRepository anchorRepo;
 	
-	protected String filePrefix;
-	
 	@SuppressWarnings("unchecked")
 	@BeforeEach
 	public void setUp()
@@ -44,13 +40,6 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 		when(repo.save(any())).thenReturn(Mono.empty());
 		when(anchorRepo.deleteByTrustBundleId(any())).thenReturn(Mono.empty());
 		when(anchorRepo.saveAll((Collection<TrustBundleAnchor>)any())).thenReturn(Flux.empty());
-		
-		// check for Windows... it doens't like file://<drive>... turns it into FTP
-		File file = new File("./src/test/resources/bundles/signedbundle.p7b");
-		if (file.getAbsolutePath().contains(":/"))
-			filePrefix = "file:///";
-		else
-			filePrefix = "file:///";
 	}
 	
 	@Test
@@ -61,8 +50,8 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
-		File fl = new File("src/test/resources/bundles/signedbundle.p7b");
-		bundle.setBundleURL(filePrefix + fl.getAbsolutePath());
+		String bundleURL = getClass().getClassLoader().getResource("bundles/signedbundle.p7b").toString();
+		bundle.setBundleURL(bundleURL);
 	
 		processor.refreshBundle(bundle).block();
 	
@@ -77,8 +66,8 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
-		File fl = new File("src/test/resources/bundles/signedbundle.p7b");
-		bundle.setBundleURL(filePrefix + fl.getAbsolutePath());
+		String bundleURL = getClass().getClassLoader().getResource("bundles/signedbundle.p7b").toString();
+		bundle.setBundleURL(bundleURL);
 		bundle.setCheckSum("12345");
 	
 		processor.refreshBundle(bundle).block();
@@ -94,12 +83,13 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 		
 		final TrustBundle bundle = new TrustBundle();
 		
-		File fl = new File("src/test/resources/bundles/signedbundle.p7b");
+		String bundleResourceName = "bundles/signedbundle.p7b";
+		String bundleURL = getClass().getClassLoader().getResource(bundleResourceName).toString();
 		
-		byte[] rawBundleByte = FileUtils.readFileToByteArray(fl);
+		byte[] rawBundleByte = IOUtils.resourceToByteArray(bundleResourceName, getClass().getClassLoader());
 		
 		bundle.setBundleName("Junit Bundle");
-		bundle.setBundleURL(filePrefix + fl.getAbsolutePath());
+		bundle.setBundleURL(bundleURL);
 		bundle.setCheckSum(BundleThumbprint.toThumbprint(rawBundleByte).toString());
 		
 		processor.refreshBundle(bundle).block();
@@ -115,8 +105,8 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
-		File fl = new File("src/test/resources/bundles/signedbundle.p7b2122");
-		bundle.setBundleURL(filePrefix + fl.getAbsolutePath());
+		String bundleURL = getClass().getClassLoader().getResource("bundles/signedbundle.p7b").toString();
+		bundle.setBundleURL(bundleURL + "2122");
 	
 		processor.refreshBundle(bundle).block();
 	
@@ -131,8 +121,8 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 		
 		final TrustBundle bundle = new TrustBundle();
 		bundle.setBundleName("Junit Bundle");
-		File fl = new File("src/test/resources/bundles/invalidBundle.der");
-		bundle.setBundleURL(filePrefix + fl.getAbsolutePath());
+		String bundleURL = getClass().getClassLoader().getResource("bundles/invalidBundle.der").toString();
+		bundle.setBundleURL(bundleURL);
 	
 		processor.refreshBundle(bundle).block();
 	
@@ -149,8 +139,8 @@ public class DefaultBundleRefreshProcessorImpl_refreshBundleTest
 			
 			final TrustBundle bundle = new TrustBundle();
 			bundle.setBundleName("Junit Bundle");
-			File fl = new File("src/test/resources/bundles/signedbundle.p7b");
-			bundle.setBundleURL(filePrefix + fl.getAbsolutePath());
+			String bundleURL = getClass().getClassLoader().getResource("bundles/signedbundle.p7b").toString();
+			bundle.setBundleURL(bundleURL);
 		
 			doThrow(new ConfigurationStoreException("Just Passing Through")).when(repo).save((TrustBundle)any());
 	

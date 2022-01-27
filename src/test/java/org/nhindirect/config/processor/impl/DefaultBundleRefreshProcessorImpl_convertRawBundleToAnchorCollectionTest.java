@@ -11,9 +11,8 @@ import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 
 import java.security.cert.X509Certificate;
-import java.util.Calendar;
+import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.Locale;
 
 import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.repository.TrustBundleAnchorRepository;
@@ -33,7 +32,7 @@ public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectio
 		
 		final TrustBundle existingBundle = new TrustBundle();
 		
-		final Calendar processAttempStart = Calendar.getInstance(Locale.getDefault());
+		final LocalDateTime processAttempStart = LocalDateTime.now();
 		
 		Collection<X509Certificate> anchors = processor.convertRawBundleToAnchorCollection(rawBundle, existingBundle, processAttempStart).block();
 		
@@ -51,7 +50,7 @@ public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectio
 		
 		final TrustBundle existingBundle = new TrustBundle();
 		
-		final Calendar processAttempStart = Calendar.getInstance(Locale.getDefault());
+		final LocalDateTime processAttempStart = LocalDateTime.now();
 		
 		Collection<X509Certificate> anchors = processor.convertRawBundleToAnchorCollection(rawBundle, existingBundle, processAttempStart).block();
 		
@@ -72,7 +71,7 @@ public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectio
 		final TrustBundle existingBundle = new TrustBundle();
 		existingBundle.setSigningCertificateData(signer.getEncoded());
 		
-		final Calendar processAttempStart = Calendar.getInstance(Locale.getDefault());
+		final LocalDateTime processAttempStart = LocalDateTime.now();
 		
 		Collection<X509Certificate> anchors = processor.convertRawBundleToAnchorCollection(rawBundle, existingBundle, processAttempStart).block();
 		
@@ -100,7 +99,7 @@ public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectio
 		final TrustBundle existingBundle = new TrustBundle();
 		existingBundle.setSigningCertificateData(signer.getEncoded());
 		
-		final Calendar processAttempStart = Calendar.getInstance(Locale.getDefault());
+		final LocalDateTime processAttempStart = LocalDateTime.now();
 		
 		Collection<X509Certificate> anchors = processor.convertRawBundleToAnchorCollection(rawBundle, existingBundle, processAttempStart).block();
 		
@@ -122,7 +121,7 @@ public class DefaultBundleRefreshProcessorImpl_convertRawBundleToAnchorCollectio
 		
 		final TrustBundle existingBundle = new TrustBundle();
 		
-		final Calendar processAttempStart = Calendar.getInstance(Locale.getDefault());
+		final LocalDateTime processAttempStart = LocalDateTime.now();
 		
 		Collection<X509Certificate> anchors = processor.convertRawBundleToAnchorCollection(rawBundle, existingBundle, processAttempStart).block();
 		

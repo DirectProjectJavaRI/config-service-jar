@@ -31,20 +31,18 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bouncycastle.cms.CMSProcessableByteArray;
 import org.bouncycastle.cms.CMSSignedData;
 import org.bouncycastle.cms.SignerInformation;
@@ -73,12 +71,13 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.resources.ConnectionProvider;
 
 /**
  * Default implementation of the {@linkplain BundleRefreshProcessor} interface.
  * <p>
  * The implementation allows for bundles to be downloaded from SSL protected sites that may not
- * chain back to a trust CA.  This is useful in developement environments and is not recommended in
+ * chain back to a trust CA.  This is useful in development environments and is not recommended in
  * a production environment.  By default, this feature is disable, but can be enabled using the 
  * {@link DefaultBundleRefreshProcessorImpl#BUNDLE_REFRESH_PROCESSOR_ALLOW_DOWNLOAD_FROM_UNTRUSTED} options parameter.
  * @author Greg Meyer
@@ -95,7 +94,8 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
     public final static String BUNDLE_REFRESH_PROCESSOR_ALLOW_DOWNLOAD_FROM_UNTRUSTED = "BUNDLE_REFRESH_PROCESSOR_ALLOW_DOWNLOAD_FROM_UNTRUSTED";   
 	
 	protected static final int DEFAULT_URL_CONNECTION_TIMEOUT = 10000; // 10 seconds	
-	protected static final int DEFAULT_URL_READ_TIMEOUT = 10000; // 10 hour seconds	
+	protected static final int DEFAULT_URL_READ_TIMEOUT = 10000; // 10 seconds
+	protected static final int POOL_MAX_IDLE_TIME = 20; // 20 seconds
 	
     /**
      * Trust bundle repo
@@ -171,7 +171,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	public Mono<?> refreshBundle(TrustBundle bundle)
 	{
 		// track when the process started
-		final Calendar processAttempStart = Calendar.getInstance(Locale.getDefault());
+		final LocalDateTime processAttempStart = LocalDateTime.now();
 
 		// get the bundle from the URL
 		return downloadBundleToByteArray(bundle, processAttempStart)
@@ -184,7 +184,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 				// use a checksum 
 				boolean update = false;
 				String checkSum = "";
-				if (bundle.getCheckSum() == null)
+				if (StringUtils.isBlank(bundle.getCheckSum()))
 					// never got a check sum... 
 					update = true;
 				else
@@ -193,14 +193,17 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 					{
 						checkSum = BundleThumbprint.toThumbprint(rawBundle).toString();
 						update = !bundle.getCheckSum().equals(BundleThumbprint.toThumbprint(rawBundle).toString());
+						if (update) {
+							log.info("Detected a change in bundle [{}] (old checksum: {}; new checkSum: {})!", bundle.getBundleName(), bundle.getCheckSum(), checkSum);
+						}
 					}
 					///CLOVER:OFF
 					catch (NoSuchAlgorithmException ex)
 					{
-						bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+						bundle.setLastRefreshAttempt(processAttempStart);
 						bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
 						
-						log.error("Failed to generate downloaded bundle thumbprint ", ex);
+						log.error("Failed to generate downloaded bundle thumbprint", ex);
 						
 						return bundleRepo.save(bundle);
 						
@@ -212,10 +215,11 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 				
 				if (!update)
 				{
-					bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+					// bundle was not updated, but mark it as a successful refresh
+					bundle.setLastRefreshAttempt(processAttempStart);
+					bundle.setLastSuccessfulRefresh(LocalDateTime.now());
 					bundle.setLastRefreshError(BundleRefreshError.SUCCESS.ordinal());
 					return bundleRepo.save(bundle);
-
 				}
 				
 				return convertRawBundleToAnchorCollection(rawBundle, bundle, processAttempStart)
@@ -241,7 +245,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 						///CLOVER:OFF
 						catch (Exception e) 
 						{ 
-							log.warn("Failed to convert downloaded anchor to byte array. ", e);
+							log.warn("Failed to convert downloaded anchor to byte array.", e);
 							return Mono.empty();
 						}
 						///CLOVER:ON
@@ -251,18 +255,21 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		    		.then(bundleAnchorRepo.saveAll(newAnchors).collectList())
 		    		.flatMap(res -> 
 		    		{
-						bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+						bundle.setLastRefreshAttempt(processAttempStart);
 						bundle.setLastRefreshError(BundleRefreshError.SUCCESS.ordinal());
 						bundle.setCheckSum(finalCheckSum);
 						bundle.setLastSuccessfulRefresh(LocalDateTime.now());
 						
 						return bundleRepo.save(bundle)
+							.doOnSuccess(savedBundle -> {
+								log.info("successfully refreshed bundle {}", bundle.getBundleName());
+							})
 							.onErrorResume(ex -> 
 							{
-								log.error("Failed to write updated bundle anchors to data store ", ex);
+								log.error("Failed to write updated bundle anchors to data store", ex);
 								
 							
-								bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+								bundle.setLastRefreshAttempt(processAttempStart);
 								bundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
 								return bundleRepo.save(bundle);
 								
@@ -283,7 +290,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	 */
 	@SuppressWarnings({ "unchecked", "deprecation" })
 	protected Mono<Collection<X509Certificate>> convertRawBundleToAnchorCollection(byte[] rawBundle, final TrustBundle existingBundle,
-			final Calendar processAttempStart)
+			final LocalDateTime processAttempStart)
 	{
 		Collection<? extends Certificate> bundleCerts = null;
 		InputStream inStream = null;
@@ -339,7 +346,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		    		
 		    		if (!sigVerified)
 		    		{
-		    			existingBundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+		    			existingBundle.setLastRefreshAttempt(processAttempStart);
 		    			existingBundle.setLastRefreshError(BundleRefreshError.UNMATCHED_SIGNATURE.ordinal());
 		    			log.warn("Downloaded bundle signature did not match configured signing certificate.");
 		    			
@@ -356,7 +363,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			}
 			catch (Exception e)
 			{
-    			existingBundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+    			existingBundle.setLastRefreshAttempt(processAttempStart);
     			existingBundle.setLastRefreshError(BundleRefreshError.INVALID_BUNDLE_FORMAT.ordinal());
     			
     			log.warn("Failed to extract anchors from downloaded bundle at URL " + existingBundle.getBundleURL());
@@ -379,8 +386,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	 * @param processAttempStart The time that the update process started. 
 	 * @return A byte array representing the raw data of the bundle.
 	 */
-	@SuppressWarnings("deprecation")
-	protected Mono<byte[]> downloadBundleToByteArray(TrustBundle bundle, Calendar processAttempStart)
+	protected Mono<byte[]> downloadBundleToByteArray(TrustBundle bundle, LocalDateTime processAttempStart)
 	{
 		try
 		{
@@ -388,6 +394,7 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			
 			if (uri.getScheme().compareToIgnoreCase("file") == 0)
 			{
+				// file scheme URIs are used by unit tests
 				final ByteArrayOutputStream ouStream = new ByteArrayOutputStream();
 
 				
@@ -413,7 +420,11 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			}
 			else
 			{
-				final HttpClient httpClient = HttpClient.create()
+				// this custom connection provider with a configured pool max idle time prevents
+				// "Connection reset by peer" errors
+				ConnectionProvider provider = ConnectionProvider.builder("custom")
+						.maxIdleTime(Duration.ofSeconds(POOL_MAX_IDLE_TIME)).build();
+				final HttpClient httpClient = HttpClient.create(provider)
 						  .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, DEFAULT_URL_CONNECTION_TIMEOUT)
 						  .secure(t -> t.sslContext(sslContext))
 						  .responseTimeout(Duration.ofMillis(DEFAULT_URL_CONNECTION_TIMEOUT))
@@ -425,14 +436,13 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 				.clientConnector(new ReactorClientHttpConnector(httpClient))
 				.build()
 				.get()
-		        .exchange()
-		        .flatMap(response -> response.bodyToMono(ByteArrayResource.class))
+		        .exchangeToMono(response -> response.bodyToMono(ByteArrayResource.class))
 		        .map(ByteArrayResource::getByteArray)
 		        .onErrorResume(ex -> 
 		        {
-		        	log.warn("Failed to download bundle from URL " + bundle.getBundleURL(), ex);
+		        	log.warn("Failed to download bundle from URL {}", bundle.getBundleURL(), ex);
 		        	
-					bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+					bundle.setLastRefreshAttempt(processAttempStart);
 					bundle.setLastRefreshError(BundleRefreshError.DOWNLOAD_TIMEOUT.ordinal());
 					return bundleRepo.save(bundle)
 							.then(Mono.empty());
@@ -442,9 +452,9 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 		}
 		catch (Exception e )
 		{
-			log.warn("Failed to download bundle from URL " + bundle.getBundleURL(), e);
+			log.warn("Failed to download bundle from URL {}", bundle.getBundleURL(), e);
 			
-			bundle.setLastRefreshAttempt(new Timestamp(processAttempStart.getTime().getTime()).toLocalDateTime());
+			bundle.setLastRefreshAttempt(processAttempStart);
 			bundle.setLastRefreshError(BundleRefreshError.NOT_FOUND.ordinal());
 			return bundleRepo.save(bundle)
 					.then(Mono.empty());

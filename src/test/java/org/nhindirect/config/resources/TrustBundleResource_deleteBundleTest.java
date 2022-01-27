@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -93,8 +92,8 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 					
 					TrustBundle bundle = new TrustBundle();
 					bundle.setBundleName("testBundle1");
-					File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-					bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+					String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+					bundle.setBundleURL(bundleURL);	
 					bundle.setRefreshInterval(24);
 					bundle.setSigningCertificateData(null);		
 					bundles.add(bundle);
