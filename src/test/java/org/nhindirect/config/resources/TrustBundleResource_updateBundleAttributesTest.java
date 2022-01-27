@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -109,8 +108,8 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(null);		
 						bundles.add(bundle);
@@ -173,8 +172,8 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(null);		
 						bundles.add(bundle);
@@ -192,8 +191,8 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 				{
 					final TrustBundle bundleData = new TrustBundle();
 					bundleData.setBundleName("testBundle1");
-					File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-					bundleData.setBundleURL(filePrefix + fl.getAbsolutePath());	
+					String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+					bundleData.setBundleURL(bundleURL);	
 					bundleData.setRefreshInterval(24);
 					bundleData.setSigningCertificateData(null);	
 					
@@ -241,8 +240,8 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(null);		
 						bundles.add(bundle);
@@ -306,8 +305,8 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(TestUtils.loadSigner("bundleSigner.der").getEncoded());		
 						bundles.add(bundle);
@@ -371,8 +370,8 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(TestUtils.loadSigner("bundleSigner.der").getEncoded());		
 						bundles.add(bundle);
@@ -389,8 +388,8 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 				protected TrustBundle getBundleDataToUpdate() throws Exception
 				{
 					final TrustBundle bundleData = new TrustBundle();
-					File fl = new File("src/test/resources/bundles/invalidBundle.der");
-					bundleData.setBundleURL(filePrefix + fl.getAbsolutePath());	
+					String bundleURL = getClass().getClassLoader().getResource("bundles/invalidBundle.der").toString();
+					bundleData.setBundleURL(bundleURL);	
 					
 					return bundleData;
 					
@@ -435,8 +434,8 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(null);		
 						bundles.add(bundle);
@@ -497,8 +496,8 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(null);		
 						bundles.add(bundle);

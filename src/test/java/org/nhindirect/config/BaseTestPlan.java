@@ -1,23 +1,7 @@
 package org.nhindirect.config;
 
-import java.io.File;
-
 public abstract class BaseTestPlan
 {	
-	static protected String filePrefix;
-	
-    static
-    {
-
-		// check for Windows... it doens't like file://<drive>... turns it into FTP
-		File file = new File("./src/test/resources/bundles/signedbundle.p7b");
-		if (file.getAbsolutePath().contains(":/"))
-			filePrefix = "file:///";
-		else
-			filePrefix = "file:///";
-    }
-    
-	
 	public void perform() throws Exception 
 	{
 		try 

@@ -31,8 +31,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 @TestPropertySource("classpath:bootstrap.properties")
 public abstract class SpringBaseTest
 {
-	protected String filePrefix;
-	
 	@Autowired
 	protected TestRestTemplate testRestTemplate;
 	
@@ -81,14 +79,6 @@ public abstract class SpringBaseTest
 	@BeforeEach
 	public void setUp()
 	{
-		
-		// check for Windows... it doens't like file://<drive>... turns it into FTP
-		File file = new File("./src/test/resources/bundles/signedbundle.p7b");
-		if (file.getAbsolutePath().contains(":/"))
-			filePrefix = "file:///";
-		else
-			filePrefix = "file:///";
-		
 		try
 		{
 			cleanDataStore();

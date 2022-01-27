@@ -1,26 +1,20 @@
 package org.nhindirect.config;
 
-import java.io.File;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 
-import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 
 public class TestUtils 
 {
-	private static final String certsBasePath = "src/test/resources/certs/"; 
-	private static final String signerBasePath = "src/test/resources/signers/"; 
-	private static final String bundleBasePath = "src/test/resources/bundles/"; 
+	private static final String certsBasePath = "certs/"; 
+	private static final String signerBasePath = "signers/"; 
+	private static final String bundleBasePath = "bundles/"; 
 	
 	public static byte[] loadBundle(String bundleFileName) throws Exception
 	{
-		File fl = new File(bundleBasePath + bundleFileName);
-		
-		return FileUtils.readFileToByteArray(fl);
-
+		return IOUtils.resourceToByteArray(bundleBasePath + bundleFileName, TestUtils.class.getClassLoader());
 	}
 	
 	public static X509Certificate loadCert(String certFileName) throws Exception
@@ -35,9 +29,7 @@ public class TestUtils
 	
 	protected static final X509Certificate fromFile(String base, String file) throws Exception
 	{
-		File fl = new File(base + file);
-
-		try (final InputStream data = FileUtils.openInputStream(fl))
+		try (final InputStream data = TestUtils.class.getClassLoader().getResourceAsStream(base + file))
 		{
 			X509Certificate retVal = (X509Certificate)CertificateFactory.getInstance("X.509").generateCertificate(data);
 			return retVal;
@@ -46,19 +38,4 @@ public class TestUtils
 		{
 		}
 	}
-	
-    public static final String uriEscape(String val) 
-    {
-        try 
-        {
-            final String escapedVal = URLEncoder.encode(val, "UTF-8");
-            // Spaces are treated differently in actual URLs. There don't appear to be any other
-            // differences...
-            return escapedVal.replace("+", "%20");
-        } 
-        catch (UnsupportedEncodingException e) 
-        {
-            throw new RuntimeException("Failed to encode value: " + val, e);
-        }
-    }
 }

@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -86,8 +85,8 @@ public class TrustBundleResource_addTrustBundleTest extends SpringBaseTest
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(null);		
 						bundles.add(bundle);
@@ -95,7 +94,7 @@ public class TrustBundleResource_addTrustBundleTest extends SpringBaseTest
 						
 						bundle = new TrustBundle();
 						bundle.setBundleName("testBundle2");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(12);
 						bundle.setSigningCertificateData(null);
 						
@@ -155,8 +154,8 @@ public class TrustBundleResource_addTrustBundleTest extends SpringBaseTest
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(null);		
 						bundles.add(bundle);
@@ -164,7 +163,7 @@ public class TrustBundleResource_addTrustBundleTest extends SpringBaseTest
 						
 						bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(12);
 						bundle.setSigningCertificateData(null);
 						
@@ -231,8 +230,8 @@ public class TrustBundleResource_addTrustBundleTest extends SpringBaseTest
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(null);		
 						bundles.add(bundle);
@@ -298,8 +297,8 @@ public class TrustBundleResource_addTrustBundleTest extends SpringBaseTest
 						
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
-						File fl = new File("src/test/resources/bundles/providerTestBundle.p7b");
-						bundle.setBundleURL(filePrefix + fl.getAbsolutePath());	
+						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
+						bundle.setBundleURL(bundleURL);	
 						bundle.setRefreshInterval(24);
 						bundle.setSigningCertificateData(null);		
 						bundles.add(bundle);
