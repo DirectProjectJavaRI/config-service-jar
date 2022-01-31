@@ -21,6 +21,7 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.resources;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -217,6 +218,7 @@ public class CertificateResource extends ProtectedResource
 						org.nhindirect.config.store.Certificate entCert = EntityModelConversion.toEntityCertificate(cert);
 						entCert = CertificateUtils.applyCertRepositoryAttributes(entCert, kspMgr);
 						entCert.setId(null);
+						entCert.setCreateTime(LocalDateTime.now());
 						
 						return certRepo.save(entCert)
 							.then()
