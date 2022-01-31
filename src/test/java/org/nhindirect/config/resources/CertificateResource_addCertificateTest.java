@@ -130,6 +130,7 @@ public class CertificateResource_addCertificateTest extends SpringBaseTest
 						assertEquals(org.nhindirect.config.store.EntityStatus.NEW.ordinal(), retrievedCert.getStatus());
 						assertEquals(addedX509Cert.getNotAfter().getTime(), retrievedCert.getValidEndDate().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
 						assertEquals(addedX509Cert.getNotBefore().getTime(), retrievedCert.getValidStartDate().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+						assertNotNull(retrievedCert.getCreateTime());
 					}
 										
 				}
@@ -194,6 +195,7 @@ public class CertificateResource_addCertificateTest extends SpringBaseTest
 						assertEquals(org.nhindirect.config.store.EntityStatus.NEW.ordinal(), retrievedCert.getStatus());
 						assertEquals(addedX509Cert.getNotAfter().getTime(), retrievedCert.getValidEndDate().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
 						assertEquals(addedX509Cert.getNotBefore().getTime(), retrievedCert.getValidStartDate().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+						assertNotNull(retrievedCert.getCreateTime());
 					}
 										
 				}
