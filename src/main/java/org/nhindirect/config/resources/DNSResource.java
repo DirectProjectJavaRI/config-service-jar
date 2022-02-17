@@ -21,6 +21,7 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.resources;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -158,6 +159,7 @@ public class DNSResource extends ProtectedResource
 			 
     		final org.nhindirect.config.store.DNSRecord addRec = EntityModelConversion.toEntityDNSRecord(record);
     		addRec.setId(null);
+    		addRec.setCreateTime(LocalDateTime.now());
     		
     		return dnsRepo.save(addRec)
     		.then()
