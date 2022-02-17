@@ -126,6 +126,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 					assertTrue(Arrays.equals(addedRecord.getData(), retrievedRecord.getData()));
 					assertEquals(addedRecord.getTtl(), retrievedRecord.getTtl());
 					assertEquals(addedRecord.getName(), retrievedRecord.getName());
+					assertNotNull(retrievedRecord.getCreateTime());
 				}
 				
 			}
@@ -178,6 +179,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 					assertTrue(Arrays.equals(addedRecord.getData(), retrievedRecord.getData()));
 					assertEquals(addedRecord.getTtl(), retrievedRecord.getTtl());
 					assertEquals("myserver.com.", retrievedRecord.getName());
+					assertNotNull(retrievedRecord.getCreateTime());
 				}
 				
 			}
