@@ -23,6 +23,7 @@ THE POSSIBILITY OF SUCH DAMAGE.
 package org.nhindirect.config.resources;
 
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -62,6 +63,7 @@ import org.springframework.web.server.ResponseStatusException;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 /**
  * Resource for managing address resources in the configuration service.
@@ -104,7 +106,6 @@ public class TrustBundleResource extends ProtectedResource
      * Bundle refresh processor used to manually refresh a trust bundle;
      */
     protected BundleRefreshProcessor bundleRefreshProcessor;
-    
     /**
      * Constructor
      */
@@ -401,16 +402,19 @@ public class TrustBundleResource extends ProtectedResource
     	{
     		if (foundBundle.getBundleName() == null)
     			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
-    		
-    		return bundleAnchorRepo.deleteByTrustBundleId(foundBundle.getId())
-    		.then(reltnRepo.deleteByTrustBundleId(foundBundle.getId())
-    				.then(bundleRepo.deleteById(foundBundle.getId())))
-   	      .onErrorResume(e -> { 
- 	    		log.error("Error deleting bundle", e);
- 	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
- 	    	});
-    		  
-    	});
+    			return bundleAnchorRepo.deleteByTrustBundleId(foundBundle.getId())
+        				.then(reltnRepo.deleteByTrustBundleId(foundBundle.getId())
+        				.then(bundleRepo.deleteById(foundBundle.getId())))
+        				.retryWhen(Retry.fixedDelay(2, Duration.ofSeconds(10))
+        				.doBeforeRetry(retrySignal->{
+        					log.error("Error deleting bundle "+bundleName+" number of retry "+retrySignal.totalRetries(),retrySignal.failure());
+        				}).doAfterRetry(afterRetry->{
+        					log.error("Error deleting bundle "+bundleName+" number of retry "+afterRetry.totalRetries(),afterRetry.failure());
+        				}))
+        				.onErrorResume(ex -> { 
+        					log.error("Error deleting bundle " + bundleName, ex);
+        					return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));});
+        });  
     }
     
     /**
