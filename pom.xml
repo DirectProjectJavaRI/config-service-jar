@@ -47,7 +47,7 @@
     </licenses>    
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<commons-net.version>3.8.0</commons-net.version>
+		<commons-net.version>3.9.0</commons-net.version>
 		<bcprov-jdk15on.version>1.68</bcprov-jdk15on.version>
 	</properties>   	
 	<dependencies>
