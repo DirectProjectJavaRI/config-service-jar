@@ -292,28 +292,42 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	protected Mono<Collection<X509Certificate>> convertRawBundleToAnchorCollection(byte[] rawBundle, final TrustBundle existingBundle,
 			final LocalDateTime processAttempStart)
 	{
-		Collection<? extends Certificate> bundleCerts = null;
-		InputStream inStream = null;
-		// check to see if its an unsigned PKCS7 container
+		
+		boolean isSigned = false;
+		
 		try
 		{
-			inStream = new ByteArrayInputStream(rawBundle);
-			bundleCerts = CertificateFactory.getInstance("X.509").generateCertificates(inStream);
-			
-			// in Java 7, an invalid bundle may be returned as a null instead of throw an exception
-			// if its null and has no anchors, then try again as a signed bundle
-			if (bundleCerts != null && bundleCerts.size() == 0)
-				bundleCerts = null;
-			
+			final CMSSignedData signed = new CMSSignedData(rawBundle);
+			if (signed.getSignerInfos().getSigners().size() > 0)
+				isSigned = true;
 		}
-		catch (Exception e)
-		{
-			/* no-op for now.... this may not be a p7b, so try it as a signed message*/
+		catch (Exception e) {/*no-op*/}
+		
+		Collection<? extends Certificate> bundleCerts = null;
+		InputStream inStream = null;
+		
+		if (!isSigned) {
+			try
+			{
+				inStream = new ByteArrayInputStream(rawBundle);
+				bundleCerts = CertificateFactory.getInstance("X.509").generateCertificates(inStream);
+				
+				// in Java 7, an invalid bundle may be returned as a null instead of throw an exception
+				// if its null and has no anchors, then try again as a signed bundle
+				if (bundleCerts != null && bundleCerts.size() == 0)
+					bundleCerts = null;
+				
+			}
+			catch (Exception e)
+			{
+				/* no-op for now.... this may not be a p7b, so try it as a signed message*/
+			}
+			finally
+			{
+				IOUtils.closeQuietly(inStream);
+			}			
 		}
-		finally
-		{
-			IOUtils.closeQuietly(inStream);
-		}
+
 		
 		// didnt work... try again as a CMS signed message
 		if (bundleCerts == null)
