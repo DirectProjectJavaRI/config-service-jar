@@ -12,10 +12,11 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
+
 import org.nhindirect.config.model.CertPolicyGroup;
 import org.nhindirect.config.repository.CertPolicyGroupRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;

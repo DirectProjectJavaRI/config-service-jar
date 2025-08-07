@@ -9,11 +9,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
-
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
 import org.nhindirect.config.repository.SettingRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;

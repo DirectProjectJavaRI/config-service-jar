@@ -12,11 +12,11 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.repository.AddressRepository;
 import org.nhindirect.config.repository.DomainRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;

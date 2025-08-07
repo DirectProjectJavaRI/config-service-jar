@@ -1,11 +1,9 @@
-package org.nhindirect.config.springconfig;
+package org.nhindirect.config.autoconfig;
 
 import org.nhindirect.config.processor.BundleCacheUpdateProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
-@Component
 public class BundleRefreshTask 
 {
 	@Autowired

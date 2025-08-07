@@ -11,11 +11,11 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.BundleRefreshError;
 import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.repository.TrustBundleRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -57,7 +57,7 @@ public class TrustBundleResource_refreshBundleTest extends SpringBaseTest
 					});
 				}
 				
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/refreshBundle/", HttpMethod.POST, null, Void.class,
+				final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/refreshBundle", HttpMethod.POST, null, Void.class,
 						getBundleNameToRefresh());
 				if (resp.getStatusCodeValue() != 204)
 					throw new HttpClientErrorException(resp.getStatusCode());

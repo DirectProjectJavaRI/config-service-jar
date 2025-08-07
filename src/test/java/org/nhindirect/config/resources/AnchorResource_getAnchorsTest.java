@@ -13,12 +13,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
-import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.Anchor;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.AnchorRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
+import org.nhindirect.config.test.TestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -60,7 +60,7 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 			}
 			
 			final Collection<Anchor> getAnchors = webClient.get()
-			.uri(uriBuilder ->  uriBuilder.path("/anchor/").build())
+			.uri(uriBuilder ->  uriBuilder.path("/anchor").build())
 			.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Anchor>>() {}).block();
 
 			doAssertions(getAnchors);

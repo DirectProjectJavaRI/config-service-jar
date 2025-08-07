@@ -1,4 +1,4 @@
-package org.nhindirect.config;
+package org.nhindirect.config.test;
 
 import java.io.File;
 
@@ -26,7 +26,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @SpringBootTest(classes = TestApplication.class, webEnvironment = WebEnvironment.DEFINED_PORT)
-@TestPropertySource("classpath:bootstrap.properties")
+@TestPropertySource("classpath:application.properties")
 public abstract class SpringBaseTest
 {
 	@Autowired

@@ -1,4 +1,4 @@
-package org.nhindirect.config;
+package org.nhindirect.config.test;
 
 public abstract class BaseTestPlan
 {	

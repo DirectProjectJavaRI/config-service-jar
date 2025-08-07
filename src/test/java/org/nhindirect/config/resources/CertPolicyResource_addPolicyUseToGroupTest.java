@@ -14,14 +14,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
 import org.nhindirect.config.model.CertPolicyGroupUse;
 import org.nhindirect.config.model.CertPolicyUse;
 import org.nhindirect.config.repository.CertPolicyGroupRepository;
 import org.nhindirect.config.repository.CertPolicyRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.nhindirect.policy.PolicyLexicon;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;

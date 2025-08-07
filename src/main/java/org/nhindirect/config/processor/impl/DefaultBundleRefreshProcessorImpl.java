@@ -288,13 +288,15 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 	 * @param processAttempStart The time that the update process started.
 	 * @return
 	 */
-	@SuppressWarnings({ "unchecked", "deprecation" })
+	@SuppressWarnings({ "unchecked"})
 	protected Mono<Collection<X509Certificate>> convertRawBundleToAnchorCollection(byte[] rawBundle, final TrustBundle existingBundle,
 			final LocalDateTime processAttempStart)
 	{
 		
 		boolean isSigned = false;
 		
+		// find out first if it's signed
+		// Java 17 will still return a bundle using the X.509 cert factory even if it's a signed bundle
 		try
 		{
 			final CMSSignedData signed = new CMSSignedData(rawBundle);

@@ -14,11 +14,11 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.commons.io.IOUtils;
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
-import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.repository.CertificateRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
+import org.nhindirect.config.test.TestUtils;
 import org.nhindirect.config.model.Certificate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;

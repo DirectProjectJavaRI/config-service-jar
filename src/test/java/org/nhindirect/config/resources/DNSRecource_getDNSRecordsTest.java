@@ -14,12 +14,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
-import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.DNSRecord;
 import org.nhindirect.config.model.utils.DNSUtils;
 import org.nhindirect.config.repository.DNSRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
+import org.nhindirect.config.test.TestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
