@@ -64,7 +64,7 @@ public class CertPolicyResource_getPolicyGroupDomainReltnsTest extends SpringBas
 				{
 					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
+					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
@@ -76,7 +76,7 @@ public class CertPolicyResource_getPolicyGroupDomainReltnsTest extends SpringBas
 					{
 						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -86,7 +86,7 @@ public class CertPolicyResource_getPolicyGroupDomainReltnsTest extends SpringBas
 				{					
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/domain/{groupName}/{domainName}", HttpMethod.POST, null, Void.class,
 							getGroupNameToAssociate(), getDomainNameToAssociate());
-					if (resp.getStatusCodeValue() != 204)
+					if (resp.getStatusCode().value() != 204)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
@@ -282,7 +282,7 @@ public class CertPolicyResource_getPolicyGroupDomainReltnsTest extends SpringBas
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

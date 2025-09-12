@@ -58,7 +58,7 @@ public class DomainResource_searchDomainTest extends SpringBaseTest
 				{
 					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
+					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				});
 				
@@ -517,7 +517,7 @@ public class DomainResource_searchDomainTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof WebClientResponseException);
 				WebClientResponseException ex = (WebClientResponseException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		

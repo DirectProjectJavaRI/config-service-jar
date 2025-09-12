@@ -54,7 +54,7 @@ public class CertPolicyResource_getPolicyGroupByNameTest extends SpringBaseTest
 					{
 						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});						
 				}
@@ -62,7 +62,7 @@ public class CertPolicyResource_getPolicyGroupByNameTest extends SpringBaseTest
 				final ResponseEntity<CertPolicyGroup> getGroup = testRestTemplate.exchange("/certpolicy/groups/{name}", HttpMethod.GET, null, 
 						CertPolicyGroup.class, getGroupToRetrieve());
 				
-				int statusCode = getGroup.getStatusCodeValue();
+				int statusCode = getGroup.getStatusCode().value();
 				if (statusCode == 404)
 					doAssertions(null);
 				else if (statusCode == 200)
@@ -221,7 +221,7 @@ public class CertPolicyResource_getPolicyGroupByNameTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	

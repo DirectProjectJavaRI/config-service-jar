@@ -62,7 +62,7 @@ public class CertificateResource_getCertificatesByOwnerTest extends SpringBaseTe
 					{
 						final HttpEntity<Certificate> requestEntity = new HttpEntity<>(addCert);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certificate", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -312,7 +312,7 @@ public class CertificateResource_getCertificatesByOwnerTest extends SpringBaseTe
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

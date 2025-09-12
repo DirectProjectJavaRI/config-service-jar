@@ -54,7 +54,7 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 			{
 				final HttpEntity<Anchor> requestEntity = new HttpEntity<>(addAnchor);
 				final ResponseEntity<Void> resp = testRestTemplate.exchange("/anchor", HttpMethod.PUT, requestEntity, Void.class);
-				if (resp.getStatusCodeValue() != 201)
+				if (resp.getStatusCode().value() != 201)
 					throw new HttpClientErrorException(resp.getStatusCode());
 			});
 			doAssertions();
@@ -315,7 +315,7 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(409, ex.getRawStatusCode());
+				assertEquals(409, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		
@@ -383,7 +383,7 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -451,7 +451,7 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		

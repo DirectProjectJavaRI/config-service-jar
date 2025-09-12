@@ -110,7 +110,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 					{
 						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
@@ -121,7 +121,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				{
 					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
+					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
@@ -141,7 +141,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 							HttpMethod.POST, null, Void.class, 
 							getBundleNameToAssociate(), getDomainNameToAssociate());
 					
-					if (resp.getStatusCodeValue() != 204)
+					if (resp.getStatusCode().value() != 204)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 
@@ -149,7 +149,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 						HttpMethod.DELETE, null, Void.class, 
 						getBundleNameToDisassociate(), getDomainNameToDisassociate());
 				
-				if (resp.getStatusCodeValue() != 200)
+				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
 
 				doAssertions();
@@ -222,7 +222,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -251,7 +251,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -319,7 +319,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -388,7 +388,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -463,7 +463,7 @@ public class TrustBundleResource_disassociateTrustBundleFromDomainTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

@@ -74,7 +74,7 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 						resp = testRestTemplate.exchange("/setting", HttpMethod.PUT, requestEntity, Void.class);
 					}
 					
-					if (resp.getStatusCodeValue() != 201)
+					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 
 				}
@@ -83,13 +83,13 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 						testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.POST, null, Void.class, 
 								getSettingNameToUpdate(), getSettingValueToUpdate());
 					
-				if (resp.getStatusCodeValue() != 204)
+				if (resp.getStatusCode().value() != 204)
 					throw new HttpClientErrorException(resp.getStatusCode());	
 
 				
 				final ResponseEntity<Setting> getSetting = testRestTemplate.getForEntity("/setting/" + getSettingNameToUpdate(), Setting.class);
 				
-				int statusCode = getSetting.getStatusCodeValue();
+				int statusCode = getSetting.getStatusCode().value();
 				if (statusCode == 404)
 					doAssertions(null);
 				else if (statusCode == 200)
@@ -183,7 +183,7 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -240,7 +240,7 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}
@@ -300,7 +300,7 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

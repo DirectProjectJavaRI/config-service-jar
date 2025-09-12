@@ -131,7 +131,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 					{
 						final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(addPolicy);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -144,7 +144,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 					{
 						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -156,7 +156,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 					
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/uses/{groupName}", HttpMethod.POST, requestEntity, Void.class,
 							getGroupNameToAssociate());
-					if (resp.getStatusCodeValue() != 204)
+					if (resp.getStatusCode().value() != 204)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
@@ -166,14 +166,14 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 						HttpMethod.POST, requestEntity, Void.class,
 						getGroupToRemoveFrom());
 
-				if (resp.getStatusCodeValue() != 200)
+				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
 				
 				// get the group
 				final ResponseEntity<CertPolicyGroup> getGroup = testRestTemplate.exchange("/certpolicy/groups/{group}", HttpMethod.GET, null, 
 						CertPolicyGroup.class, getGroupNameToAssociate());
 
-				int statusCode = getGroup.getStatusCodeValue();
+				int statusCode = getGroup.getStatusCode().value();
 				if (statusCode == 404)
 					doAssertions(null);
 				else if (statusCode == 200)
@@ -243,7 +243,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -324,7 +324,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 					
 	            	assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -424,7 +424,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

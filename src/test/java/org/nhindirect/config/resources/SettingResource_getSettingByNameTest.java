@@ -53,7 +53,7 @@ public class SettingResource_getSettingByNameTest extends SpringBaseTest
 					{
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.PUT, null, Void.class,
 								addSetting.getName(), addSetting.getValue());
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
@@ -155,7 +155,7 @@ public class SettingResource_getSettingByNameTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -211,7 +211,7 @@ public class SettingResource_getSettingByNameTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

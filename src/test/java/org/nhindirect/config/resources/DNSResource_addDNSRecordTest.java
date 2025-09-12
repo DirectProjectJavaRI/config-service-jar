@@ -55,7 +55,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 			{
 				final HttpEntity<DNSRecord> requestEntity = new HttpEntity<>(addRec);
 				final ResponseEntity<Void> resp = testRestTemplate.exchange("/dns", HttpMethod.PUT, requestEntity, Void.class);
-				if (resp.getStatusCodeValue() != 201)
+				if (resp.getStatusCode().value() != 201)
 					throw new HttpClientErrorException(resp.getStatusCode());
 			});			
 
@@ -220,7 +220,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(409, ex.getRawStatusCode());
+				assertEquals(409, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -280,7 +280,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		
@@ -341,7 +341,7 @@ public class DNSResource_addDNSRecordTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	

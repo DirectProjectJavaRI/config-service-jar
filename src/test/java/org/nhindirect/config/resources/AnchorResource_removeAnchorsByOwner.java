@@ -53,7 +53,7 @@ public class AnchorResource_removeAnchorsByOwner extends SpringBaseTest
 				{
 					final HttpEntity<Anchor> requestEntity = new HttpEntity<>(addAnchor);
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/anchor", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
+					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				});
 			}
@@ -61,7 +61,7 @@ public class AnchorResource_removeAnchorsByOwner extends SpringBaseTest
 			final ResponseEntity<?> resp = 
 					testRestTemplate.exchange("/anchor/" + getOwnerToRemove(), HttpMethod.DELETE, null, Void.class);
 				
-			if (resp.getStatusCodeValue() != 200)
+			if (resp.getStatusCode().value() != 200)
 				throw new HttpClientErrorException(resp.getStatusCode());
 			
 			doAssertions();
@@ -234,7 +234,7 @@ public class AnchorResource_removeAnchorsByOwner extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		

@@ -56,7 +56,7 @@ public class CertPolicyResource_getPoliciesTest extends SpringBaseTest
 					{
 						final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(addPolicy);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});						
 				}
@@ -208,7 +208,7 @@ public class CertPolicyResource_getPoliciesTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

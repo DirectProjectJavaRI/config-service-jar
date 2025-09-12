@@ -70,7 +70,7 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			{
 				HttpEntity<Address> requestEntity = new HttpEntity<Address>(addAddress);
 				ResponseEntity<Void> resp = testRestTemplate.exchange("/address", HttpMethod.PUT, requestEntity, Void.class);
-				if (resp.getStatusCodeValue() != 201)
+				if (resp.getStatusCode().value() != 201)
 					throw new HttpClientErrorException(resp.getStatusCode());
 			}
 			
@@ -78,7 +78,7 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 					Void.class);
 			
 			
-			if (getAddresses.getStatusCodeValue() != 200)
+			if (getAddresses.getStatusCode().value() != 200)
 				throw new HttpClientErrorException(getAddresses.getStatusCode());
 
 			doAssertions();
@@ -174,7 +174,7 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(404, ex.getRawStatusCode());
+				assertEquals(404, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		
@@ -238,7 +238,7 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -299,7 +299,7 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}			

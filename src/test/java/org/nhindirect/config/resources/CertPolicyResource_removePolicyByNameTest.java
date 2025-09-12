@@ -54,7 +54,7 @@ public class CertPolicyResource_removePolicyByNameTest extends SpringBaseTest
 					{
 						final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(addPolicy);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -63,7 +63,7 @@ public class CertPolicyResource_removePolicyByNameTest extends SpringBaseTest
 						HttpMethod.DELETE, null, Void.class,
 						getPolicyNameToDelete());
 
-				if (resp.getStatusCodeValue() != 200)
+				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
 
 				doAssertions();
@@ -141,7 +141,7 @@ public class CertPolicyResource_removePolicyByNameTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -195,7 +195,7 @@ public class CertPolicyResource_removePolicyByNameTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -253,7 +253,7 @@ public class CertPolicyResource_removePolicyByNameTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}				

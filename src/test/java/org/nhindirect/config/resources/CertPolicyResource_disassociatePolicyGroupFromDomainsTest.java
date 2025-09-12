@@ -110,7 +110,7 @@ public class CertPolicyResource_disassociatePolicyGroupFromDomainsTest extends S
 				{
 					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
+					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
@@ -122,7 +122,7 @@ public class CertPolicyResource_disassociatePolicyGroupFromDomainsTest extends S
 					{
 						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -133,14 +133,14 @@ public class CertPolicyResource_disassociatePolicyGroupFromDomainsTest extends S
 				{					
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/domain/{groupName}/{domainName}", HttpMethod.POST, null, Void.class,
 							getGroupNameToAssociate(), getDomainNameToAssociate());
-					if (resp.getStatusCodeValue() != 204)
+					if (resp.getStatusCode().value() != 204)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
 				// disassociate
 				final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/domain/{groupName}/deleteFromGroup", HttpMethod.DELETE, null, Void.class,
 						getGroupNameToDisassociate());
-				if (resp.getStatusCodeValue() != 200)
+				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
 
 				doAssertions();
@@ -196,7 +196,7 @@ public class CertPolicyResource_disassociatePolicyGroupFromDomainsTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -255,7 +255,7 @@ public class CertPolicyResource_disassociatePolicyGroupFromDomainsTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -322,7 +322,7 @@ public class CertPolicyResource_disassociatePolicyGroupFromDomainsTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

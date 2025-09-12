@@ -74,7 +74,7 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 					{
 						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
@@ -85,7 +85,7 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				{
 					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
+					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
@@ -93,7 +93,7 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 						HttpMethod.POST, null, Void.class, 
 						getBundleNameToAssociate(), getDomainNameToAssociate(), isIncoming(), isOutgoing());
 				
-				if (resp.getStatusCodeValue() != 204)
+				if (resp.getStatusCode().value() != 204)
 					throw new HttpClientErrorException(resp.getStatusCode());
 				
 
@@ -338,7 +338,7 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -407,7 +407,7 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -473,7 +473,7 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -548,7 +548,7 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -628,7 +628,7 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
