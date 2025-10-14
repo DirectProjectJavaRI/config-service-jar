@@ -162,7 +162,8 @@
 	                </goals>
 	              </execution>
 	            </executions>					
-			</plugin>				
+			</plugin>	
+			<!-- for releases only			
 	        <plugin>
                <groupId>org.apache.maven.plugins</groupId>
                <artifactId>maven-gpg-plugin</artifactId>
@@ -176,7 +177,8 @@
                  </execution>
                </executions>
                <version>3.0.1</version>
-            </plugin>		
+            </plugin>	
+            -->	
 	        <plugin>
 	          <groupId>org.sonatype.central</groupId>
 	          <artifactId>central-publishing-maven-plugin</artifactId>
