@@ -1,6 +1,7 @@
 package org.nhindirect.config.springconfig;
 
 import org.nhindirect.common.crypto.KeyStoreProtectionManager;
+import org.nhindirect.common.crypto.impl.BootstrappedKeyStoreProtectionManager;
 import org.nhindirect.common.crypto.impl.BootstrappedPKCS11Credential;
 import org.nhindirect.common.crypto.impl.StaticCachedPKCS11TokenKeyStoreProtectionManager;
 import org.springframework.beans.factory.annotation.Value;
@@ -68,5 +69,16 @@ public class KeyStoreConfig
 		  {
 			   throw new RuntimeException(e);
 		  }
+	  }
+	  
+	  @Bean	  
+	  @ConditionalOnProperty(name="direct.config.keystore.bootstrapmanager", havingValue="true")
+	  public KeyStoreProtectionManager nonHSMKeyStoreProtectionManager()
+	  {
+		  log.info("No HSM configured.");
+		  
+		  final BootstrappedKeyStoreProtectionManager mgr = new BootstrappedKeyStoreProtectionManager(keyStorePassPhrase, privateKeyPassPhrase);
+		  
+		  return mgr;
 	  }
 }
