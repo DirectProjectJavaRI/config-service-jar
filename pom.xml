@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.nhind</groupId>
 	<artifactId>config-service-jar</artifactId>
-	<version>8.1.1-SNAPSHOT</version>
+	<version>8.1.1</version>
 	<packaging>jar</packaging>
 	<name>NHIN Direct Java RI config service jar</name>
     <description>NHIN Direct Java RI config service jar.</description>	
@@ -162,8 +162,7 @@
 	                </goals>
 	              </execution>
 	            </executions>					
-			</plugin>	
-			<!--  for releases only				
+			</plugin>				
 	        <plugin>
                <groupId>org.apache.maven.plugins</groupId>
                <artifactId>maven-gpg-plugin</artifactId>
@@ -178,7 +177,6 @@
                </executions>
                <version>3.0.1</version>
             </plugin>		
-            -->
 	        <plugin>
 	          <groupId>org.sonatype.central</groupId>
 	          <artifactId>central-publishing-maven-plugin</artifactId>
