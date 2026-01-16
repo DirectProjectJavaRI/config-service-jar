@@ -13,10 +13,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.repository.CertPolicyRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.nhindirect.policy.PolicyLexicon;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
@@ -56,13 +56,13 @@ public class CertPolicyResource_getPoliciesTest extends SpringBaseTest
 					{
 						final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(addPolicy);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});						
 				}
 				
 				final Collection<CertPolicy> pols = webClient.get()
-						.uri("certpolicy/")
+						.uri("certpolicy")
 						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<CertPolicy>>() {}).block();
 
 				doAssertions(pols);				
@@ -208,7 +208,7 @@ public class CertPolicyResource_getPoliciesTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

@@ -10,13 +10,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
-
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.DomainRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -53,19 +52,19 @@ public class DomainResource_updateDomainTest extends SpringBaseTest
 			{
 				final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
 				final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-				if (resp.getStatusCodeValue() != 201)
+				if (resp.getStatusCode().value() != 201)
 					throw new HttpClientErrorException(resp.getStatusCode());
 			}
 			
 
 			final HttpEntity<Domain> requestEntity = new HttpEntity<>(getDomainToUpdate());
 			final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.POST, requestEntity, Void.class);
-			if (resp.getStatusCodeValue() != 204)
+			if (resp.getStatusCode().value() != 204)
 				throw new HttpClientErrorException(resp.getStatusCode());
 
 			final ResponseEntity<Domain> getDomain = testRestTemplate.getForEntity("/domain/" + getDomainToUpdate().getDomainName(), Domain.class);
 			
-			int statusCode = getDomain.getStatusCodeValue();
+			int statusCode = getDomain.getStatusCode().value();
 			if (statusCode == 404)
 				doAssertions(null);
 			else if (statusCode == 200)
@@ -169,7 +168,7 @@ public class DomainResource_updateDomainTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(404, ex.getRawStatusCode());
+				assertEquals(404, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -232,7 +231,7 @@ public class DomainResource_updateDomainTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		
@@ -299,7 +298,7 @@ public class DomainResource_updateDomainTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		

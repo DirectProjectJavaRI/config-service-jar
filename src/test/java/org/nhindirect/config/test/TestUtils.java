@@ -1,4 +1,4 @@
-package org.nhindirect.config;
+package org.nhindirect.config.test;
 
 import java.io.InputStream;
 import java.security.cert.CertificateFactory;

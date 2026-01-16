@@ -12,8 +12,6 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
@@ -21,6 +19,8 @@ import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
 import org.nhindirect.config.repository.DomainRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -108,7 +108,7 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 				{
 					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
+					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
@@ -120,7 +120,7 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 					{
 						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -131,7 +131,7 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 				{					
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/domain/{groupName}/{domainName}", HttpMethod.POST, null, Void.class,
 							getGroupNameToAssociate(), getDomainNameToAssociate());
-					if (resp.getStatusCodeValue() != 204)
+					if (resp.getStatusCode().value() != 204)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
@@ -139,7 +139,7 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 
 				final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/domain/{domain}/deleteFromDomain", HttpMethod.DELETE, null, Void.class,
 						getDomainNameToDisassociate());
-				if (resp.getStatusCodeValue() != 200)
+				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
 				
 				doAssertions();
@@ -193,7 +193,7 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -252,7 +252,7 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -318,7 +318,7 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

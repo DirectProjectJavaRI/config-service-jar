@@ -14,8 +14,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
@@ -23,6 +21,8 @@ import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.model.TrustBundleDomainReltn;
 import org.nhindirect.config.repository.DomainRepository;
 import org.nhindirect.config.repository.TrustBundleDomainReltnRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -74,7 +74,7 @@ public class TrustBundleResource_getAllTrustBundleDomainRelts extends SpringBase
 					{
 						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle.getTrustBundle());
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
@@ -85,7 +85,7 @@ public class TrustBundleResource_getAllTrustBundleDomainRelts extends SpringBase
 				{
 					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
+					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
@@ -97,7 +97,7 @@ public class TrustBundleResource_getAllTrustBundleDomainRelts extends SpringBase
 							HttpMethod.POST, null, Void.class, 
 							getBundleNameToAssociate(), getDomainNameToAssociate());
 					
-					if (resp.getStatusCodeValue() != 204)
+					if (resp.getStatusCode().value() != 204)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 
@@ -409,7 +409,7 @@ public class TrustBundleResource_getAllTrustBundleDomainRelts extends SpringBase
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

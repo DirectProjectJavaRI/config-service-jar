@@ -14,10 +14,10 @@ import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 
-import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.repository.TrustBundleAnchorRepository;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.nhindirect.config.store.TrustBundle;
+import org.nhindirect.config.test.TestUtils;
 
 import reactor.core.publisher.Mono;
 

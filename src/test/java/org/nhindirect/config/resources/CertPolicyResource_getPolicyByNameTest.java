@@ -14,10 +14,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.repository.CertPolicyRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.nhindirect.policy.PolicyLexicon;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -55,7 +55,7 @@ public class CertPolicyResource_getPolicyByNameTest extends SpringBaseTest
 					{
 						final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(addPolicy);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -63,7 +63,7 @@ public class CertPolicyResource_getPolicyByNameTest extends SpringBaseTest
 				final ResponseEntity<CertPolicy> getPolicy = testRestTemplate.exchange("/certpolicy/{name}", HttpMethod.GET, null, 
 						CertPolicy.class, getPolicyToRetrieve());
 
-				int statusCode = getPolicy.getStatusCodeValue();
+				int statusCode = getPolicy.getStatusCode().value();
 				if (statusCode == 404)
 					doAssertions(null);
 				else if (statusCode == 200)
@@ -239,7 +239,7 @@ public class CertPolicyResource_getPolicyByNameTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

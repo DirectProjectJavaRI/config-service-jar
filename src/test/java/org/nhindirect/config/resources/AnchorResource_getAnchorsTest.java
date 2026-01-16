@@ -13,12 +13,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
-import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.Anchor;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.AnchorRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
+import org.nhindirect.config.test.TestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -54,13 +54,13 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 				{
 					final HttpEntity<Anchor> requestEntity = new HttpEntity<>(addAnchor);
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/anchor", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
+					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				});
 			}
 			
 			final Collection<Anchor> getAnchors = webClient.get()
-			.uri(uriBuilder ->  uriBuilder.path("/anchor/").build())
+			.uri(uriBuilder ->  uriBuilder.path("/anchor").build())
 			.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Anchor>>() {}).block();
 
 			doAssertions(getAnchors);
@@ -205,7 +205,7 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof WebClientResponseException);
 				WebClientResponseException ex = (WebClientResponseException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		

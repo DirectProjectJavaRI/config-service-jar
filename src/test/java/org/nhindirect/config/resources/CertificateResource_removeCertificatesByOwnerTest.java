@@ -12,11 +12,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import org.apache.commons.io.IOUtils;
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
-import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.repository.CertificateRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
+import org.nhindirect.config.test.TestUtils;
 import org.nhindirect.config.model.Certificate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -53,7 +53,7 @@ public class CertificateResource_removeCertificatesByOwnerTest extends SpringBas
 					{
 						final HttpEntity<Certificate> requestEntity = new HttpEntity<>(addCert);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certificate", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});			
 				}
@@ -62,7 +62,7 @@ public class CertificateResource_removeCertificatesByOwnerTest extends SpringBas
 						testRestTemplate.exchange("/certificate/{ownder}",
 		                HttpMethod.DELETE, null, Void.class, getOwnerToRemove());
 				
-				if (resp.getStatusCodeValue() != 200)
+				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
 				
 				doAssertions();
@@ -216,7 +216,7 @@ public class CertificateResource_removeCertificatesByOwnerTest extends SpringBas
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	

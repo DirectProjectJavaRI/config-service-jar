@@ -14,12 +14,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
-import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.DNSRecord;
 import org.nhindirect.config.model.utils.DNSUtils;
 import org.nhindirect.config.repository.DNSRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
+import org.nhindirect.config.test.TestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -92,7 +92,7 @@ public class DNSRecource_getDNSRecordsTest extends SpringBaseTest
 					{
 						final HttpEntity<DNSRecord> requestEntity = new HttpEntity<>(addRec);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/dns", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});			
 				}
@@ -386,7 +386,7 @@ public class DNSRecource_getDNSRecordsTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(400, ex.getRawStatusCode());
+					assertEquals(400, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -440,7 +440,7 @@ public class DNSRecource_getDNSRecordsTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

@@ -14,9 +14,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
-
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
 import org.nhindirect.config.model.CertPolicyGroupUse;
@@ -24,6 +21,8 @@ import org.nhindirect.config.model.CertPolicyUse;
 import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
 import org.nhindirect.config.repository.CertPolicyGroupReltnRepository;
 import org.nhindirect.config.repository.CertPolicyGroupRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.nhindirect.policy.PolicyLexicon;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -132,7 +131,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 					{
 						final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(addPolicy);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -145,7 +144,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 					{
 						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -157,7 +156,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 					
 					final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/uses/{groupName}", HttpMethod.POST, requestEntity, Void.class,
 							getGroupNameToAssociate());
-					if (resp.getStatusCodeValue() != 204)
+					if (resp.getStatusCode().value() != 204)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
 				
@@ -167,14 +166,14 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 						HttpMethod.POST, requestEntity, Void.class,
 						getGroupToRemoveFrom());
 
-				if (resp.getStatusCodeValue() != 200)
+				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
 				
 				// get the group
 				final ResponseEntity<CertPolicyGroup> getGroup = testRestTemplate.exchange("/certpolicy/groups/{group}", HttpMethod.GET, null, 
 						CertPolicyGroup.class, getGroupNameToAssociate());
 
-				int statusCode = getGroup.getStatusCodeValue();
+				int statusCode = getGroup.getStatusCode().value();
 				if (statusCode == 404)
 					doAssertions(null);
 				else if (statusCode == 200)
@@ -244,7 +243,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -325,7 +324,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 					
 	            	assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -425,7 +424,7 @@ public class CertPolicyResource_removedPolicyUseFromGroupTest extends SpringBase
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

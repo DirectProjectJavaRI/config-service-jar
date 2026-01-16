@@ -9,11 +9,11 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 import org.junit.jupiter.api.Test;
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.repository.AddressRepository;
 import org.nhindirect.config.repository.DomainRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -61,7 +61,7 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 
 				HttpEntity<Address> requestEntity = new HttpEntity<Address>(addAddress);
 				ResponseEntity<Void> resp = testRestTemplate.exchange("/address", HttpMethod.PUT, requestEntity, Void.class);
-				if (resp.getStatusCodeValue() != 201)
+				if (resp.getStatusCode().value() != 201)
 					throw new HttpClientErrorException(resp.getStatusCode());
 
 			
@@ -154,7 +154,7 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(400, ex.getRawStatusCode());
+				assertEquals(400, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -191,7 +191,7 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(400, ex.getRawStatusCode());
+				assertEquals(400, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -228,7 +228,7 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(404, ex.getRawStatusCode());
+				assertEquals(404, ex.getStatusCode().value());
 			}
 		}.perform();
 	}			
@@ -288,7 +288,7 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(409, ex.getRawStatusCode());
+				assertEquals(409, ex.getStatusCode().value());
 			}
 		}.perform();
 	}
@@ -350,7 +350,7 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		
@@ -412,7 +412,7 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		
@@ -474,7 +474,7 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}			

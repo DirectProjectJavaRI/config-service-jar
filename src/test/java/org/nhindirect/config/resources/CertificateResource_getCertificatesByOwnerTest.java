@@ -15,14 +15,14 @@ import java.util.Collection;
 
 import org.apache.commons.io.IOUtils;
 import org.nhindirect.common.cert.Thumbprint;
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
-import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.Certificate;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.model.utils.CertUtils.CertContainer;
 import org.nhindirect.config.repository.CertificateRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
+import org.nhindirect.config.test.TestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -62,7 +62,7 @@ public class CertificateResource_getCertificatesByOwnerTest extends SpringBaseTe
 					{
 						final HttpEntity<Certificate> requestEntity = new HttpEntity<>(addCert);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certificate", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});	
 				}
@@ -312,7 +312,7 @@ public class CertificateResource_getCertificatesByOwnerTest extends SpringBaseTe
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

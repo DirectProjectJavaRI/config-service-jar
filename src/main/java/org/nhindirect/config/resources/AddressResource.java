@@ -98,8 +98,8 @@ public class AddressResource extends ProtectedResource
      * @return A JSON representation of an Address.  Returns 404 if the address doesn't exists.
      * @param address The address to retrieve.
      */ 
-    @GetMapping(value="/{address}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<Address> getAddress(@PathVariable String address)
+    @GetMapping(value="{address}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public Mono<Address> getAddress(@PathVariable("address") String address)
     {   
 		return addRepo.findByEmailAddressIgnoreCase(address)
 			    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Address()))
@@ -124,7 +124,7 @@ public class AddressResource extends ProtectedResource
      * or a 204 status if no addresses are configured for the domain.
      */
     @GetMapping(value="domain/{domainName}", produces = MediaType.APPLICATION_JSON_VALUE)     
-    public Flux<Address> getAddressesByDomain(@PathVariable String domainName)
+    public Flux<Address> getAddressesByDomain(@PathVariable("domainName") String domainName)
     {   	
 		return domainRepo.findByDomainNameIgnoreCase(domainName)
 			    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))

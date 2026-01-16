@@ -11,11 +11,11 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.BundleRefreshError;
 import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.repository.TrustBundleRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -52,19 +52,19 @@ public class TrustBundleResource_refreshBundleTest extends SpringBaseTest
 					{
 						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle);
 						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
 				
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/refreshBundle/", HttpMethod.POST, null, Void.class,
+				final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/refreshBundle", HttpMethod.POST, null, Void.class,
 						getBundleNameToRefresh());
-				if (resp.getStatusCodeValue() != 204)
+				if (resp.getStatusCode().value() != 204)
 					throw new HttpClientErrorException(resp.getStatusCode());
 				
 				final ResponseEntity<TrustBundle> getBundle = testRestTemplate.getForEntity("/trustbundle/" + getBundleNameToRefresh(), TrustBundle.class);
 
-				int statusCode = getBundle.getStatusCodeValue();
+				int statusCode = getBundle.getStatusCode().value();
 				if (statusCode == 404)
 					doAssertions(null);
 				else if (statusCode == 200)
@@ -165,7 +165,7 @@ public class TrustBundleResource_refreshBundleTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -218,7 +218,7 @@ public class TrustBundleResource_refreshBundleTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof HttpClientErrorException);
 					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

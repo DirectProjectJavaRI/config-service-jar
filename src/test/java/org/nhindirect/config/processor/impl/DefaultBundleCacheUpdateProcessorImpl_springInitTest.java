@@ -12,13 +12,12 @@ import java.io.InputStream;
 import java.util.Calendar;
 
 import org.apache.commons.io.FileUtils;
-
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.model.TrustBundleAnchor;
 import org.nhindirect.config.processor.BundleCacheUpdateProcessor;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
 import org.nhindirect.config.resources.TrustBundleResource;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import reactor.core.publisher.Mono;
@@ -54,7 +53,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_springInitTest extends Spring
 		bundle.setBundleName("Test Bundle");
 		bundle.setBundleURL(bundleURL);
 		
-		webClient.put().uri("trustbundle/")
+		webClient.put().uri("trustbundle")
 		.body(Mono.just(bundle), TrustBundle.class)
 		.retrieve().bodyToMono(String.class).block();
 		
@@ -78,7 +77,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_springInitTest extends Spring
 		bundle.setBundleName("Test Bundle");
 		bundle.setBundleURL(bundleURL);
 		
-		webClient.put().uri("trustbundle/")
+		webClient.put().uri("trustbundle")
 		.body(Mono.just(bundle), TrustBundle.class)
 		.retrieve().bodyToMono(String.class).block();
 		
@@ -112,7 +111,7 @@ public class DefaultBundleCacheUpdateProcessorImpl_springInitTest extends Spring
 		bundle.setBundleName("Test Bundle");
 		bundle.setBundleURL(targetTempFileLocation.toURI().toURL().toString());
 		
-		webClient.put().uri("trustbundle/")
+		webClient.put().uri("trustbundle")
 		.body(Mono.just(bundle), TrustBundle.class)
 		.retrieve().bodyToMono(String.class).block();
 		

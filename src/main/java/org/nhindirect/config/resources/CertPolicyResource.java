@@ -79,8 +79,6 @@ public class CertPolicyResource extends ProtectedResource
     
     protected DomainRepository domainRepo;
     
-    protected CertPolicyResource transactionalThisProxy;
-    
     /**
      * Constructor
      */
@@ -138,12 +136,6 @@ public class CertPolicyResource extends ProtectedResource
     public void setCertPolicyGroupReltnRepository(CertPolicyGroupReltnRepository polGroupReltnRepo) 
     {
         this.polGroupReltnRepo = polGroupReltnRepo;
-    }
-    
-    @Autowired 
-    public void setInternalThisProxy(CertPolicyResource internalProxy)
-    {
-    	transactionalThisProxy = internalProxy;
     }
     
     /**

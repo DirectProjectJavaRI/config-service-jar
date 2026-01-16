@@ -12,12 +12,12 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.DomainRepository;
+import org.nhindirect.config.test.BaseTestPlan;
+import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -47,12 +47,12 @@ public class DomainResource_addDomainTest extends SpringBaseTest
 		
 			final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
 			final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-			if (resp.getStatusCodeValue() != 201)
+			if (resp.getStatusCode().value() != 201)
 				throw new HttpClientErrorException(resp.getStatusCode());
 				
 			final ResponseEntity<Domain> getAddress = testRestTemplate.getForEntity("/domain/" + addDomain.getDomainName(), Domain.class);
 			
-			int statusCode = getAddress.getStatusCodeValue();
+			int statusCode = getAddress.getStatusCode().value();
 			if (statusCode == 404)
 				doAssertions(null);
 			else if (statusCode == 200)
@@ -186,7 +186,7 @@ public class DomainResource_addDomainTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(409, ex.getRawStatusCode());
+				assertEquals(409, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -244,7 +244,7 @@ public class DomainResource_addDomainTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -302,7 +302,7 @@ public class DomainResource_addDomainTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof HttpClientErrorException);
 				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		
