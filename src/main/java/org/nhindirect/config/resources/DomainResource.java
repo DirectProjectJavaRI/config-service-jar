@@ -191,11 +191,11 @@ public class DomainResource extends ProtectedResource
 		if (status == null && domainName.isEmpty())
 			domains = domainRepo.findAll();
 		else if (status == null)
-			domains = domainRepo.findByDomainNameContainingIgnoreCase("%" + domainName.toUpperCase() + "%");
+			domains = domainRepo.findByDomainNameContainingIgnoreCase(domainName);
 		else if (domainName.isEmpty())
 			domains = domainRepo.findByStatus(status.ordinal());
 		else
-			domains = domainRepo.findByDomainNameContainingIgnoreCaseAndStatus("%" + domainName.toUpperCase() + "%", status.ordinal());
+			domains = domainRepo.findByDomainNameContainingIgnoreCaseAndStatus(domainName, status.ordinal());
 
 
 		return domains.flatMap(domain -> 
