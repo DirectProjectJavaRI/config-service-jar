@@ -12,12 +12,12 @@ import java.io.InputStream;
 import java.util.Calendar;
 
 import org.apache.commons.io.FileUtils;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.model.TrustBundleAnchor;
 import org.nhindirect.config.processor.BundleCacheUpdateProcessor;
 import org.nhindirect.config.processor.BundleRefreshProcessor;
 import org.nhindirect.config.resources.TrustBundleResource;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import reactor.core.publisher.Mono;

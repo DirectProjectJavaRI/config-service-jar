@@ -12,17 +12,15 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.DomainRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class DomainResource_addDomainTest extends SpringBaseTest
 {
@@ -41,25 +39,30 @@ public class DomainResource_addDomainTest extends SpringBaseTest
 		
 		@Override
 		protected void performInner() throws Exception
-		{				
-			
+		{
+
 			final Domain addDomain = getDomainToAdd();
-		
-			final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
-			final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
+
+			final ResponseEntity<Void> resp = webClient.put()
+				.uri(uriBuilder -> uriBuilder.path("/domain").build())
+				.bodyValue(addDomain)
+				.retrieve().toBodilessEntity().block();
+
 			if (resp.getStatusCode().value() != 201)
-				throw new HttpClientErrorException(resp.getStatusCode());
-				
-			final ResponseEntity<Domain> getAddress = testRestTemplate.getForEntity("/domain/" + addDomain.getDomainName(), Domain.class);
-			
+				throw new WebClientResponseException(resp.getStatusCode().value(), resp.getStatusCode().toString(), null, null, null);
+
+			final ResponseEntity<Domain> getAddress = webClient.get()
+				.uri(uriBuilder -> uriBuilder.path("/domain/{domainName}").build(addDomain.getDomainName()))
+				.retrieve().toEntity(Domain.class).block();
+
 			int statusCode = getAddress.getStatusCode().value();
 			if (statusCode == 404)
 				doAssertions(null);
 			else if (statusCode == 200)
 				doAssertions(getAddress.getBody());
 			else
-				throw new HttpClientErrorException(getAddress.getStatusCode());				
-	
+				throw new WebClientResponseException(statusCode, getAddress.getStatusCode().toString(), null, null, null);
+
 		}
 		
 		
@@ -182,10 +185,10 @@ public class DomainResource_addDomainTest extends SpringBaseTest
 			}
 
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(409, ex.getStatusCode().value());
 			}
 		}.perform();
@@ -240,10 +243,10 @@ public class DomainResource_addDomainTest extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
@@ -298,10 +301,10 @@ public class DomainResource_addDomainTest extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();

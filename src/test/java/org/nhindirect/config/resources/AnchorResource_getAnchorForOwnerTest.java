@@ -15,20 +15,16 @@ import java.util.Collection;
 import java.util.Iterator;
 
 import org.nhindirect.common.cert.Thumbprint;
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
+import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.Anchor;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.AnchorRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
-import org.nhindirect.config.test.TestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
-import org.springframework.web.util.UriComponentsBuilder;
 
 
 public class AnchorResource_getAnchorForOwnerTest extends SpringBaseTest
@@ -66,36 +62,36 @@ public class AnchorResource_getAnchorForOwnerTest extends SpringBaseTest
 		
 		@Override
 		protected void performInner() throws Exception
-		{				
-			
+		{
+
 			final Collection<Anchor> anchorsToAdd = getAnchorsToAdd();
-			
-			anchorsToAdd.forEach(addAnchor->		
+
+			anchorsToAdd.forEach(addAnchor->
 			{
-				final HttpEntity<Anchor> requestEntity = new HttpEntity<>(addAnchor);
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/anchor", HttpMethod.PUT, requestEntity, Void.class);
+				final ResponseEntity<Void> resp = webClient.put()
+					.uri(uriBuilder -> uriBuilder.path("/anchor").build())
+					.bodyValue(addAnchor)
+					.retrieve().toBodilessEntity().block();
 				if (resp.getStatusCode().value() != 201)
-					throw new HttpClientErrorException(resp.getStatusCode());
+					throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 			});
 
-			final UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/anchor/" + getOwner());
-
-			if (getIncoming() != null)
-				builder.queryParam("incoming", getIncoming());
-			
-			if (getOutgoing() != null)
-				builder.queryParam("outgoing", getOutgoing());
-			
-			if (getThumbprint() != null)
-				builder.queryParam("thumbprint", getThumbprint());
-			
 			final Collection<Anchor> getAnchors = webClient.get()
-			.uri(builder.toUriString())
-			.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Anchor>>() {}).block();			
+			.uri(uriBuilder -> {
+				var builder = uriBuilder.path("/anchor/{owner}");
+				if (getIncoming() != null)
+					builder = builder.queryParam("incoming", getIncoming());
+				if (getOutgoing() != null)
+					builder = builder.queryParam("outgoing", getOutgoing());
+				if (getThumbprint() != null)
+					builder = builder.queryParam("thumbprint", getThumbprint());
+				return builder.build(getOwner());
+			})
+			.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Anchor>>() {}).block();
 
 			doAssertions(getAnchors);
 
-			
+
 		}
 			
 		protected void doAssertions(Collection<Anchor> anchors) throws Exception

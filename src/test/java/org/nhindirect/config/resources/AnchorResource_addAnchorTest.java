@@ -17,17 +17,15 @@ import java.util.List;
 
 
 import org.nhindirect.common.cert.Thumbprint;
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
+import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.Anchor;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.AnchorRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
-import org.nhindirect.config.test.TestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class AnchorResource_addAnchorTest extends SpringBaseTest
 {	
@@ -46,16 +44,18 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 		
 		@Override
 		protected void performInner() throws Exception
-		{				
-			
+		{
+
 			final Collection<Anchor> anchorsToAdd = getAnchorsToAdd();
 
-			anchorsToAdd.forEach(addAnchor->		
+			anchorsToAdd.forEach(addAnchor->
 			{
-				final HttpEntity<Anchor> requestEntity = new HttpEntity<>(addAnchor);
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/anchor", HttpMethod.PUT, requestEntity, Void.class);
+				final ResponseEntity<Void> resp = webClient.put()
+					.uri(uriBuilder -> uriBuilder.path("/anchor").build())
+					.bodyValue(addAnchor)
+					.retrieve().toBodilessEntity().block();
 				if (resp.getStatusCode().value() != 201)
-					throw new HttpClientErrorException(resp.getStatusCode());
+					throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 			});
 			doAssertions();
 		}
@@ -311,10 +311,10 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(409, ex.getStatusCode().value());
 			}
 		}.perform();
@@ -379,10 +379,10 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
@@ -447,10 +447,10 @@ public class AnchorResource_addAnchorTest extends SpringBaseTest
 
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();

@@ -13,17 +13,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.repository.CertPolicyRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.nhindirect.policy.PolicyLexicon;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class CertPolicyResource_getPoliciesTest extends SpringBaseTest
@@ -46,26 +43,28 @@ public class CertPolicyResource_getPoliciesTest extends SpringBaseTest
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<CertPolicy> policiesToAdd = getPoliciesToAdd();
-				
+
 				if (policiesToAdd != null)
 				{
 					policiesToAdd.forEach(addPolicy->
 					{
-						final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(addPolicy);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy", HttpMethod.PUT, requestEntity, Void.class);
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certpolicy").build())
+							.bodyValue(addPolicy)
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
-					});						
+							throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
+					});
 				}
-				
+
 				final Collection<CertPolicy> pols = webClient.get()
 						.uri("certpolicy")
 						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<CertPolicy>>() {}).block();
 
-				doAssertions(pols);				
+				doAssertions(pols);
 			}
 				
 			protected void doAssertions(Collection<CertPolicy> policies) throws Exception

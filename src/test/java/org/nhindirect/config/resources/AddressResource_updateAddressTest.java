@@ -10,17 +10,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.repository.AddressRepository;
 import org.nhindirect.config.repository.DomainRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestClientException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -67,33 +64,40 @@ public class AddressResource_updateAddressTest  extends SpringBaseTest
 			 */
 			if (addAddress != null)
 			{
-				final HttpEntity<Address> requestEntity = new HttpEntity<Address>(addAddress);
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/address", HttpMethod.PUT, requestEntity, Void.class);
+				final ResponseEntity<Void> resp = webClient.put()
+					.uri(uriBuilder -> uriBuilder.path("/address").build())
+					.bodyValue(addAddress)
+					.retrieve().toBodilessEntity().block();
+
 				if (resp.getStatusCode().value() != 201)
-					throw new HttpClientErrorException(resp.getStatusCode());
+					throw new WebClientResponseException(resp.getStatusCode().value(), resp.getStatusCode().toString(), null, null, null);
 			}
-			
+
 			/*
 			 * Update address
 			 */
+			final ResponseEntity<Void> resp = webClient.post()
+				.uri(uriBuilder -> uriBuilder.path("/address").build())
+				.bodyValue(getAddressToUpdate())
+				.retrieve().toBodilessEntity().block();
 
-			final HttpEntity<Address> requestEntity = new HttpEntity<Address>(getAddressToUpdate());
-			final ResponseEntity<Void> resp = testRestTemplate.exchange("/address", HttpMethod.POST, requestEntity, Void.class);
 			if (resp.getStatusCode().value() != 204)
-				throw new HttpClientErrorException(resp.getStatusCode());
-			
+				throw new WebClientResponseException(resp.getStatusCode().value(), resp.getStatusCode().toString(), null, null, null);
+
 			/*
 			 * Get and validated
 			 */
 			try
 			{
-				final ResponseEntity<Address> getAddress = testRestTemplate.getForEntity("/address/" +getAddressToUpdate().getEmailAddress(), Address.class);
+				final ResponseEntity<Address> getAddress = webClient.get()
+					.uri(uriBuilder -> uriBuilder.path("/address/{emailAddress}").build(getAddressToUpdate().getEmailAddress()))
+					.retrieve().toEntity(Address.class).block();
 				doAssertions(getAddress.getBody());
 			}
-			catch (RestClientException e)
+			catch (Exception e)
 			{
 				throw e;
-			}			
+			}
 		}
 		
 		
@@ -195,10 +199,10 @@ public class AddressResource_updateAddressTest  extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(404, ex.getStatusCode().value());
 			}
 		}.perform();
@@ -244,10 +248,10 @@ public class AddressResource_updateAddressTest  extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(404, ex.getStatusCode().value());
 			}
 		}.perform();
@@ -295,8 +299,8 @@ public class AddressResource_updateAddressTest  extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(400, ex.getStatusCode().value());
 			}
 		}.perform();
@@ -342,10 +346,10 @@ public class AddressResource_updateAddressTest  extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(400, ex.getStatusCode().value());
 			}
 		}.perform();
@@ -415,8 +419,8 @@ public class AddressResource_updateAddressTest  extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
@@ -483,10 +487,10 @@ public class AddressResource_updateAddressTest  extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
@@ -555,10 +559,10 @@ public class AddressResource_updateAddressTest  extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
 				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();

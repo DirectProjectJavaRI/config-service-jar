@@ -12,14 +12,12 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
 import org.nhindirect.config.repository.SettingRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
@@ -52,24 +50,25 @@ public class SettingResource_removedSettingByNameTest extends SpringBaseTest
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
+			{
 				final Setting addSetting = getSettingToAdd();
-				
+
 				if (addSetting != null)
 				{
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.PUT, null, Void.class,
-							addSetting.getName(), addSetting.getValue());
+					final ResponseEntity<Void> resp = webClient.put()
+						.uri(uriBuilder -> uriBuilder.path("/setting/{name}/{value}").build(addSetting.getName(), addSetting.getValue()))
+						.retrieve().toBodilessEntity().block();
 					if (resp.getStatusCode().value() != 201)
-						throw new HttpClientErrorException(resp.getStatusCode());
+						throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 				}
-				
+
 				webClient.delete()
 						.uri(uriBuilder ->  uriBuilder.path("setting/{name}").build(getSettingNameToRemove()))
 						.retrieve().bodyToMono(Void.class).block();
 
 				doAssertions();
 
-				
+
 			}
 				
 			protected void doAssertions() throws Exception

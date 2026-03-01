@@ -86,7 +86,7 @@ public class KeyStoreAutoConfiguration
 	  
 	  @Bean	  
 	  @ConditionalOnProperty(name="direct.config.keystore.bootstrapmanager", havingValue="true")
-	  public KeyStoreProtectionManager nonHSMKeyStoreProtectionManager()
+	  KeyStoreProtectionManager nonHSMKeyStoreProtectionManager()
 	  {
 		  log.info("No HSM configured.");
 		  

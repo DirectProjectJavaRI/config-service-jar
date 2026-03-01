@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
@@ -21,13 +23,7 @@ import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
 import org.nhindirect.config.repository.CertPolicyGroupRepository;
 import org.nhindirect.config.repository.DomainRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
@@ -106,49 +102,48 @@ public class CertPolicyResource_disassociatePolicyGroupFromDomainTest extends Sp
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
+			{
 				final Domain addDomain = getDomainToAdd();
-				
+
 				if (addDomain != null)
 				{
-					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCode().value() != 201)
-						throw new HttpClientErrorException(resp.getStatusCode());
+					webClient.put()
+						.uri("/domain")
+						.bodyValue(addDomain)
+						.retrieve().toBodilessEntity().block();
 				}
-				
+
 				final Collection<CertPolicyGroup> groupsToAdd = getGroupsToAdd();
-				
+
 				if (groupsToAdd != null)
 				{
 					groupsToAdd.forEach(addGroup->
 					{
-						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCode().value() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
+						webClient.put()
+							.uri("/certpolicy/groups")
+							.bodyValue(addGroup)
+							.retrieve().toBodilessEntity().block();
+					});
 				}
-				
+
 
 				// associate the bundle and domain
 				if (groupsToAdd != null && addDomain != null)
-				{					
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/domain/{groupName}/{domainName}", HttpMethod.POST, null, Void.class,
-							getGroupNameToAssociate(), getDomainNameToAssociate());
-					if (resp.getStatusCode().value() != 204)
-						throw new HttpClientErrorException(resp.getStatusCode());
+				{
+					webClient.post()
+						.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups/domain/{groupName}/{domainName}").build(getGroupNameToAssociate(), getDomainNameToAssociate()))
+						.retrieve().toBodilessEntity().block();
 				}
-				
-				
-				// disassociate	
+
+
+				// disassociate
 				webClient.delete()
 						.uri(uriBuilder ->  uriBuilder.path("/certpolicy/groups/domain/{groupName}/{domainName}").build(getGroupNameToDisassociate(), getDomainNameToDisassociate()))
-						.retrieve().bodyToMono(Address.class).block();
+						.retrieve().toBodilessEntity().block();
 
 
 				doAssertions();
-				
+
 			}
 				
 			protected void doAssertions() throws Exception

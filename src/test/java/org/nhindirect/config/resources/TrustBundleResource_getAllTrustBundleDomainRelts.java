@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
@@ -21,14 +23,9 @@ import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.model.TrustBundleDomainReltn;
 import org.nhindirect.config.repository.DomainRepository;
 import org.nhindirect.config.repository.TrustBundleDomainReltnRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
@@ -64,41 +61,45 @@ public class TrustBundleResource_getAllTrustBundleDomainRelts extends SpringBase
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<TrustBundleDomainReltn> bundlesToAdd = getBundlesToAdd();
-				
+
 				if (bundlesToAdd != null)
 				{
 					bundlesToAdd.forEach(addBundle->
 					{
-						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle.getTrustBundle());
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/trustbundle").build())
+							.bodyValue(addBundle.getTrustBundle())
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
+							throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 					});
 				}
-				
+
 				final Domain addDomain = getDomainToAdd();
-				
+
 				if (addDomain != null)
 				{
-					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
+					final ResponseEntity<Void> resp = webClient.put()
+						.uri(uriBuilder -> uriBuilder.path("/domain").build())
+						.bodyValue(addDomain)
+						.retrieve().toBodilessEntity().block();
 					if (resp.getStatusCode().value() != 201)
-						throw new HttpClientErrorException(resp.getStatusCode());
+						throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 				}
-				
+
 
 				// associate bundle to domain
 				if (addDomain != null && bundlesToAdd != null)
 				{
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/{domain}", 
-							HttpMethod.POST, null, Void.class, 
-							getBundleNameToAssociate(), getDomainNameToAssociate());
-					
+					final ResponseEntity<Void> resp = webClient.post()
+						.uri(uriBuilder -> uriBuilder.path("/trustbundle/{bundle}/{domain}").build(getBundleNameToAssociate(), getDomainNameToAssociate()))
+						.retrieve().toBodilessEntity().block();
+
 					if (resp.getStatusCode().value() != 204)
-						throw new HttpClientErrorException(resp.getStatusCode());
+						throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 				}
 
 				final Collection<TrustBundleDomainReltn> reltn = webClient.get()
@@ -108,10 +109,10 @@ public class TrustBundleResource_getAllTrustBundleDomainRelts extends SpringBase
 				        .retrieve()
 				        .bodyToMono(new ParameterizedTypeReference<Collection<TrustBundleDomainReltn>>() {})
 				        .defaultIfEmpty(new ArrayList<TrustBundleDomainReltn>() ).block();
-				
 
-				doAssertions(reltn);	
-	
+
+				doAssertions(reltn);
+
 			}
 				
 			protected void doAssertions(Collection<TrustBundleDomainReltn> bundles) throws Exception
