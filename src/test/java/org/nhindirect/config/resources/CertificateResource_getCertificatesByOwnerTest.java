@@ -15,18 +15,16 @@ import java.util.Collection;
 
 import org.apache.commons.io.IOUtils;
 import org.nhindirect.common.cert.Thumbprint;
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
+import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.Certificate;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.model.utils.CertUtils.CertContainer;
 import org.nhindirect.config.repository.CertificateRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
-import org.nhindirect.config.test.TestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -60,11 +58,13 @@ public class CertificateResource_getCertificatesByOwnerTest extends SpringBaseTe
 				{
 					certsToAdd.forEach(addCert->
 					{
-						final HttpEntity<Certificate> requestEntity = new HttpEntity<>(addCert);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certificate", HttpMethod.PUT, requestEntity, Void.class);
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certificate").build())
+							.bodyValue(addCert)
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
+					});
 				}
 				
 				final Collection<Certificate> certs = webClient.get()

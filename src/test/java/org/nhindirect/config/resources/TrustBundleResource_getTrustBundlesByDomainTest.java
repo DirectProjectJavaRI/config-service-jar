@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
@@ -24,12 +26,8 @@ import org.nhindirect.config.model.TrustBundleDomainReltn;
 import org.nhindirect.config.repository.DomainRepository;
 import org.nhindirect.config.repository.TrustBundleDomainReltnRepository;
 import org.nhindirect.config.repository.TrustBundleRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -77,31 +75,35 @@ public class TrustBundleResource_getTrustBundlesByDomainTest extends SpringBaseT
 				{
 					bundlesToAdd.forEach(addBundle->
 					{
-						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle.getTrustBundle());
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
+						ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/trustbundle").build())
+							.bodyValue(addBundle.getTrustBundle())
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
-				
+
 				final Domain addDomain = getDomainToAdd();
-				
+
 				if (addDomain != null)
 				{
-					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
+					ResponseEntity<Void> resp = webClient.put()
+						.uri(uriBuilder -> uriBuilder.path("/domain").build())
+						.bodyValue(addDomain)
+						.retrieve().toBodilessEntity().block();
 					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
-				
+
 
 				// associate bundle to domain
 				if (addDomain != null && bundlesToAdd != null)
 				{
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/{domain}", 
-							HttpMethod.POST, null, Void.class, 
-							getBundleNameToAssociate(), getDomainNameToAssociate());
-					
+					ResponseEntity<Void> resp = webClient.post()
+						.uri(uriBuilder -> uriBuilder.path("/trustbundle/{bundle}/{domain}").build(getBundleNameToAssociate(), getDomainNameToAssociate()))
+						.retrieve().toBodilessEntity().block();
+
 					if (resp.getStatusCode().value() != 204)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}

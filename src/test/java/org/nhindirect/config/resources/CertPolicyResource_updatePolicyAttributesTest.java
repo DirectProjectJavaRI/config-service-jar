@@ -14,16 +14,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.repository.CertPolicyRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.nhindirect.policy.PolicyLexicon;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -74,35 +72,37 @@ public class CertPolicyResource_updatePolicyAttributesTest extends SpringBaseTes
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<CertPolicy> policiesToAdd = getPoliciesToAdd();
-				
+
 				if (policiesToAdd != null)
 				{
 					policiesToAdd.forEach(addPolicy->
 					{
-						final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(addPolicy);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy", HttpMethod.PUT, requestEntity, Void.class);
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certpolicy").build())
+							.bodyValue(addPolicy)
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
+							throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
+					});
 				}
-				
-				final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(getUpdatePolicyAttributes());
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/{policy}/policyAttributes", 
-						HttpMethod.POST, requestEntity, Void.class,
-						getPolicyToUpdate());
+
+				final ResponseEntity<Void> resp = webClient.post()
+					.uri(uriBuilder -> uriBuilder.path("/certpolicy/{policy}/policyAttributes").build(getPolicyToUpdate()))
+					.bodyValue(getUpdatePolicyAttributes())
+					.retrieve().toBodilessEntity().block();
 
 				if (resp.getStatusCode().value() != 204)
-					throw new HttpClientErrorException(resp.getStatusCode());
+					throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 
-				
-				final ResponseEntity<CertPolicy> getPolicy = testRestTemplate.exchange("/certpolicy/{policy}", 
-						HttpMethod.GET, null, CertPolicy.class,
-						getPolicyUpdatedName());
 
-				doAssertions(getPolicy.getBody());
+				final CertPolicy getPolicy = webClient.get()
+					.uri(uriBuilder -> uriBuilder.path("/certpolicy/{policy}").build(getPolicyUpdatedName()))
+					.retrieve().bodyToMono(CertPolicy.class).block();
+
+				doAssertions(getPolicy);
 			}
 				
 			protected void doAssertions(CertPolicy policy) throws Exception
@@ -207,10 +207,10 @@ public class CertPolicyResource_updatePolicyAttributesTest extends SpringBaseTes
 				}
 
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
@@ -270,10 +270,10 @@ public class CertPolicyResource_updatePolicyAttributesTest extends SpringBaseTes
 				}
 
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
@@ -336,10 +336,10 @@ public class CertPolicyResource_updatePolicyAttributesTest extends SpringBaseTes
 				}
 
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();

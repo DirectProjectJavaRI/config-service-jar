@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
@@ -18,14 +20,9 @@ import org.nhindirect.config.model.CertPolicyGroupDomainReltn;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 
@@ -57,45 +54,50 @@ public class CertPolicyResource_getPolicyGroupDomainReltnsTest extends SpringBas
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
+			{
 				final Domain addDomain = getDomainToAdd();
-				
+
 				if (addDomain != null)
 				{
-					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
+					final ResponseEntity<Void> resp = webClient.put()
+						.uri(uriBuilder -> uriBuilder.path("/domain").build())
+						.bodyValue(addDomain)
+						.retrieve().toBodilessEntity().block();
 					if (resp.getStatusCode().value() != 201)
-						throw new HttpClientErrorException(resp.getStatusCode());
+						throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 				}
-				
+
 				final Collection<CertPolicyGroup> groupsToAdd = getGroupsToAdd();
-				
+
 				if (groupsToAdd != null)
 				{
 					groupsToAdd.forEach(addGroup->
 					{
-						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups").build())
+							.bodyValue(addGroup)
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
+							throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
+					});
 				}
-				
-				
+
+
 				if (groupsToAdd != null && addDomain != null)
-				{					
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/domain/{groupName}/{domainName}", HttpMethod.POST, null, Void.class,
-							getGroupNameToAssociate(), getDomainNameToAssociate());
+				{
+					final ResponseEntity<Void> resp = webClient.post()
+						.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups/domain/{groupName}/{domainName}").build(getGroupNameToAssociate(), getDomainNameToAssociate()))
+						.retrieve().toBodilessEntity().block();
 					if (resp.getStatusCode().value() != 204)
-						throw new HttpClientErrorException(resp.getStatusCode());
+						throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 				}
-				
+
 				final Collection<CertPolicyGroupDomainReltn> getReltns = webClient.get()
 						.uri("/certpolicy/groups/domain")
 						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<CertPolicyGroupDomainReltn>>() {}).block();
 
-				doAssertions(getReltns);					
-				
+				doAssertions(getReltns);
+
 			}
 				
 			protected void doAssertions(Collection<CertPolicyGroupDomainReltn> reltns) throws Exception

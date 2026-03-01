@@ -14,20 +14,19 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
 import org.nhindirect.config.model.CertPolicyGroupUse;
 import org.nhindirect.config.model.CertPolicyUse;
 import org.nhindirect.config.repository.CertPolicyGroupRepository;
 import org.nhindirect.config.repository.CertPolicyRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.nhindirect.policy.PolicyLexicon;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -111,38 +110,45 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 				{
 					policiesToAdd.forEach(addPolicy->
 					{
-						final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(addPolicy);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy", HttpMethod.PUT, requestEntity, Void.class);
+						ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certpolicy").build())
+							.bodyValue(addPolicy)
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
-					
+					});
+
 				}
-				
+
 				final Collection<CertPolicyGroup> groupsToAdd = getGroupsToAdd();
-				
+
 				if (groupsToAdd != null)
 				{
 					groupsToAdd.forEach(addGroup->
 					{
-						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
+						ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups").build())
+							.bodyValue(addGroup)
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
+					});
 				}
-				
-				final HttpEntity<CertPolicyGroupUse> policyUseEntiity = new HttpEntity<>(getPolicyUseToAssociate());
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/uses/{groupName}", HttpMethod.POST, policyUseEntiity, Void.class, getGroupNameToAssociate());
+
+				ResponseEntity<Void> resp = webClient.post()
+					.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups/uses/{groupName}").build(getGroupNameToAssociate()))
+					.bodyValue(getPolicyUseToAssociate())
+					.retrieve().toBodilessEntity().block();
 				if (resp.getStatusCode().value() != 204)
 					throw new HttpClientErrorException(resp.getStatusCode());
 
-				
-				final ResponseEntity<CertPolicyGroup> getGroup = testRestTemplate.exchange("/certpolicy/groups/{groupName}", HttpMethod.GET, null, 
-						CertPolicyGroup.class, getGroupNameToAssociate());
+
+				final ResponseEntity<CertPolicyGroup> getGroup = webClient.get()
+					.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups/{groupName}").build(getGroupNameToAssociate()))
+					.retrieve().toEntity(CertPolicyGroup.class).block();
 
 				doAssertions(getGroup.getBody());
-				
+
 				/*
 				 * Delete the polices just so we can test the ability to delete policies
 				 * that are part of a use
@@ -151,14 +157,14 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 				{
 					policiesToAdd.forEach(addPolicy->
 					{
-						final ResponseEntity<Void> delResp = testRestTemplate.exchange("/certpolicy/{name}", 
-								HttpMethod.DELETE, null, Void.class,
-								addPolicy.getPolicyName());
+						ResponseEntity<Void> delResp = webClient.delete()
+							.uri(uriBuilder -> uriBuilder.path("/certpolicy/{name}").build(addPolicy.getPolicyName()))
+							.retrieve().toBodilessEntity().block();
 
 						if (delResp.getStatusCode().value() != 200)
 							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
-					
+					});
+
 				}
 			}
 				
@@ -238,10 +244,10 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
@@ -276,15 +282,15 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
-		}	
-		
+		}
+
 		@Test
 		public void testAddPolicyUseToGroup_errorInGroupLookup_assertServiceError()  throws Exception
 		{
@@ -299,7 +305,7 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 
 						CertPolicyGroupRepository mockDAO = mock(CertPolicyGroupRepository.class);
 						doThrow(new RuntimeException()).when(mockDAO).findByPolicyGroupNameIgnoreCase((String)any());
-						
+
 						certService.setCertPolicyGroupRepository(mockDAO);
 					}
 					catch (Throwable t)
@@ -307,60 +313,60 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected Collection<CertPolicyGroup> getGroupsToAdd()
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected Collection<CertPolicy> getPoliciesToAdd()
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					certService.setCertPolicyRepository(policyRepo);
 					certService.setCertPolicyGroupRepository(policyGroupRepo);
 				}
-				
+
 				@Override
 				protected String getGroupNameToAssociate()
 				{
 					return "Group1";
 				}
-				
+
 				@Override
 				protected CertPolicyGroupUse getPolicyUseToAssociate()
 				{
 					final CertPolicyGroupUse use = new CertPolicyGroupUse();
-					
+
 					final CertPolicy policy = new CertPolicy();
 					policy.setPolicyName("bogus");
-					
+
 					use.setIncoming(true);
 					use.setOutgoing(true);
 					use.setPolicyUse(CertPolicyUse.TRUST);
 					use.setPolicy(policy);
-					
+
 					return use;
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
-		}	
-		
+		}
+
 		@Test
 		public void testAddPolicyUseToGroup_errorInPolicyLookup_assertServiceError()  throws Exception
 		{
@@ -375,12 +381,12 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 
 						CertPolicyRepository mockDAO = mock(CertPolicyRepository.class);
 						CertPolicyGroupRepository mockGroupDAO = mock(CertPolicyGroupRepository.class);
-						
+
 						final org.nhindirect.config.store.CertPolicyGroup group = new org.nhindirect.config.store.CertPolicyGroup();
 						group.setPolicyGroupName("Test");
 						when(mockGroupDAO.findByPolicyGroupNameIgnoreCase(any())).thenReturn(Mono.just(group));
 						doThrow(new RuntimeException()).when(mockDAO).findByPolicyNameIgnoreCase(any());
-						
+
 						certService.setCertPolicyRepository(mockDAO);
 						certService.setCertPolicyGroupRepository(mockGroupDAO);
 					}
@@ -389,60 +395,60 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected Collection<CertPolicyGroup> getGroupsToAdd()
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected Collection<CertPolicy> getPoliciesToAdd()
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					certService.setCertPolicyRepository(policyRepo);
 					certService.setCertPolicyGroupRepository(policyGroupRepo);
 				}
-				
+
 				@Override
 				protected String getGroupNameToAssociate()
 				{
 					return "Group1";
 				}
-				
+
 				@Override
 				protected CertPolicyGroupUse getPolicyUseToAssociate()
 				{
 					final CertPolicyGroupUse use = new CertPolicyGroupUse();
-					
+
 					final CertPolicy policy = new CertPolicy();
 					policy.setPolicyName("bogus");
-					
+
 					use.setIncoming(true);
 					use.setOutgoing(true);
 					use.setPolicyUse(CertPolicyUse.TRUST);
 					use.setPolicy(policy);
-					
+
 					return use;
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}
-		
+
 		@Test
 		public void testAddPolicyUseToGroup_errorInAssociate_assertServiceError()  throws Exception
 		{
@@ -456,17 +462,17 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 						super.setupMocks();
 						CertPolicyRepository mockDAO = mock(CertPolicyRepository.class);
 						CertPolicyGroupRepository mockGroupDAO = mock(CertPolicyGroupRepository.class);
-						
+
 						final org.nhindirect.config.store.CertPolicyGroup group = new org.nhindirect.config.store.CertPolicyGroup();
 						group.setPolicyGroupName("Test");
-						
+
 						final org.nhindirect.config.store.CertPolicy policy = new org.nhindirect.config.store.CertPolicy();
 						policy.setPolicyName("Test");
-						
+
 						when(mockGroupDAO.findByPolicyGroupNameIgnoreCase(any())).thenReturn(Mono.just(group));
 						when(mockDAO.findByPolicyNameIgnoreCase(any())).thenReturn(Mono.just(policy));
 						doThrow(new RuntimeException()).when(mockGroupDAO).save(any());
-						
+
 						certService.setCertPolicyRepository(mockDAO);
 						certService.setCertPolicyGroupRepository(mockGroupDAO);
 					}
@@ -475,55 +481,55 @@ public class CertPolicyResource_addPolicyUseToGroupTest extends SpringBaseTest
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected Collection<CertPolicyGroup> getGroupsToAdd()
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected Collection<CertPolicy> getPoliciesToAdd()
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					certService.setCertPolicyRepository(policyRepo);
 					certService.setCertPolicyGroupRepository(policyGroupRepo);
 				}
-				
+
 				@Override
 				protected String getGroupNameToAssociate()
 				{
 					return "Group1";
 				}
-				
+
 				@Override
 				protected CertPolicyGroupUse getPolicyUseToAssociate()
 				{
 					final CertPolicyGroupUse use = new CertPolicyGroupUse();
-					
+
 					final CertPolicy policy = new CertPolicy();
 					policy.setPolicyName("Policy1");
-					
+
 					use.setIncoming(true);
 					use.setOutgoing(true);
 					use.setPolicyUse(CertPolicyUse.TRUST);
 					use.setPolicy(policy);
-					
+
 					return use;
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();

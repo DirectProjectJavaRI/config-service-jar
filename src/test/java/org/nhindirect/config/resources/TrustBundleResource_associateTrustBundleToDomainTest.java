@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
@@ -21,13 +23,10 @@ import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.repository.DomainRepository;
 import org.nhindirect.config.repository.TrustBundleDomainReltnRepository;
 import org.nhindirect.config.repository.TrustBundleRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -64,38 +63,45 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<TrustBundle> bundlesToAdd = getBundlesToAdd();
-				
+
 				if (bundlesToAdd != null)
 				{
 					bundlesToAdd.forEach(addBundle->
 					{
-						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
+						ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/trustbundle").build())
+							.bodyValue(addBundle)
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
-				
+
 				final Domain addDomain = getDomainToAdd();
-				
+
 				if (addDomain != null)
 				{
-					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
+					ResponseEntity<Void> resp = webClient.put()
+						.uri(uriBuilder -> uriBuilder.path("/domain").build())
+						.bodyValue(addDomain)
+						.retrieve().toBodilessEntity().block();
 					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
-				
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/{domain}?incoming={incoming}&outgoing={outgoing}", 
-						HttpMethod.POST, null, Void.class, 
-						getBundleNameToAssociate(), getDomainNameToAssociate(), isIncoming(), isOutgoing());
-				
+
+				ResponseEntity<Void> resp = webClient.post()
+					.uri(uriBuilder -> uriBuilder.path("/trustbundle/{bundle}/{domain}")
+						.queryParam("incoming", isIncoming())
+						.queryParam("outgoing", isOutgoing())
+						.build(getBundleNameToAssociate(), getDomainNameToAssociate()))
+					.retrieve().toBodilessEntity().block();
+
 				if (resp.getStatusCode().value() != 204)
 					throw new HttpClientErrorException(resp.getStatusCode());
-				
+
 
 				doAssertions();
 
@@ -334,39 +340,39 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
-		}		
+		}
 
-		
+
 		@Test
 		public void testAssociateBundleToDomain_unknownBundle_assertNotFound()  throws Exception
 		{
 			new TestPlan()
 			{
 				protected Collection<TrustBundle> bundles;
-				
+
 				@Override
 				protected Collection<TrustBundle> getBundlesToAdd()
 				{
 					try
 					{
 						bundles = new ArrayList<TrustBundle>();
-						
+
 						TrustBundle bundle = new TrustBundle();
 						bundle.setBundleName("testBundle1");
 						String bundleURL = getClass().getClassLoader().getResource("bundles/providerTestBundle.p7b").toString();
-						bundle.setBundleURL(bundleURL);	
+						bundle.setBundleURL(bundleURL);
 						bundle.setRefreshInterval(24);
-						bundle.setSigningCertificateData(null);		
+						bundle.setSigningCertificateData(null);
 						bundles.add(bundle);
-			
-						
+
+
 						return bundles;
 					}
 					catch (Exception e)
@@ -380,38 +386,38 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				{
 					final Address postmasterAddress = new Address();
 					postmasterAddress.setEmailAddress("me@test.com");
-					
+
 					Domain domain = new Domain();
-					
+
 					domain.setDomainName("test.com");
 					domain.setStatus(EntityStatus.ENABLED);
-					domain.setPostmasterAddress(postmasterAddress);			
-					
+					domain.setPostmasterAddress(postmasterAddress);
+
 					return domain;
 				}
-				
+
 				@Override
 				protected String getBundleNameToAssociate()
 				{
 					return "testBundle2";
 				}
-				
+
 				@Override
 				protected String getDomainNameToAssociate()
 				{
 					return "test.com";
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
-		}	
-		
+		}
+
 		@Test
 		public void testAssociateBundleToDomain_errorInBundleLookup_assertServiceError()  throws Exception
 		{
@@ -423,10 +429,10 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 					try
 					{
 						super.setupMocks();
-						
+
 						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
 						doThrow(new RuntimeException()).when(mockDAO).findByBundleNameIgnoreCase(eq("testBundle1"));
-						
+
 						bundleService.setTrustBundleRepository(mockDAO);
 					}
 					catch (Throwable t)
@@ -434,16 +440,16 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					bundleService.setTrustBundleRepository(bundleRepo);
-				}				
-				
-				
+				}
+
+
 				@Override
 				protected Collection<TrustBundle> getBundlesToAdd()
 				{
@@ -455,30 +461,30 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected String getBundleNameToAssociate()
 				{
 					return "testBundle1";
 				}
-				
+
 				@Override
 				protected String getDomainNameToAssociate()
 				{
 					return "test.com";
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
-		}	
-		
-		
+		}
+
+
 		@Test
 		public void testAssociateBundleToDomain_errorInDomainLookup_assertServiceError()  throws Exception
 		{
@@ -490,16 +496,16 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 					try
 					{
 						super.setupMocks();
-						
+
 						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
-												
+
 						org.nhindirect.config.store.TrustBundle bundle = new org.nhindirect.config.store.TrustBundle();
 						bundle.setBundleName("Test");
 
 						when(mockDAO.findByBundleNameIgnoreCase(eq("testBundle1"))).thenReturn(Mono.just(bundle));
 						doThrow(new RuntimeException()).when(mockDomainDAO).findByDomainNameIgnoreCase(eq("test.com"));
-						
+
 						bundleService.setTrustBundleRepository(mockDAO);
 						bundleService.setDomainRepository(mockDomainDAO);
 					}
@@ -508,17 +514,17 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					bundleService.setTrustBundleRepository(bundleRepo);
 					bundleService.setDomainRepository(domainRepo);
-				}				
-				
-				
+				}
+
+
 				@Override
 				protected Collection<TrustBundle> getBundlesToAdd()
 				{
@@ -530,46 +536,46 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected String getBundleNameToAssociate()
 				{
 					return "testBundle1";
 				}
-				
+
 				@Override
 				protected String getDomainNameToAssociate()
 				{
 					return "test.com";
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
-		}	
-		
+		}
+
 		@Test
 		public void testAssociateBundleToDomain_errorInAssociate_assertServiceError()  throws Exception
 		{
 			new TestPlan()
-			{		
+			{
 				@Override
 				protected void setupMocks()
 				{
 					try
 					{
 						super.setupMocks();
-						
+
 						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
 						TrustBundleDomainReltnRepository mockReltnRepo = mock(TrustBundleDomainReltnRepository.class);
-						
-						
+
+
 						org.nhindirect.config.store.TrustBundle bundle = new org.nhindirect.config.store.TrustBundle();
 						bundle.setBundleName("Test");
 						org.nhindirect.config.store.Domain domain = new org.nhindirect.config.store.Domain();
@@ -577,7 +583,7 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 						when(mockDAO.findByBundleNameIgnoreCase("testBundle1")).thenReturn(Mono.just(bundle));
 						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(Mono.just(domain));
 						doThrow(new RuntimeException()).when(mockReltnRepo).save((org.nhindirect.config.store.TrustBundleDomainReltn)any());
-						
+
 						bundleService.setTrustBundleRepository(mockDAO);
 						bundleService.setDomainRepository(mockDomainDAO);
 						bundleService.setTrustBundleDomainReltnRepository(mockReltnRepo);
@@ -587,18 +593,18 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					bundleService.setTrustBundleRepository(bundleRepo);
 					bundleService.setDomainRepository(domainRepo);
 					bundleService.setTrustBundleDomainReltnRepository(bundleDomainRepo);
-				}				
-				
-				
+				}
+
+
 				@Override
 				protected Collection<TrustBundle> getBundlesToAdd()
 				{
@@ -610,24 +616,24 @@ public class TrustBundleResource_associateTrustBundleToDomainTest extends Spring
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected String getBundleNameToAssociate()
 				{
 					return "testBundle1";
 				}
-				
+
 				@Override
 				protected String getDomainNameToAssociate()
 				{
 					return "test.com";
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();

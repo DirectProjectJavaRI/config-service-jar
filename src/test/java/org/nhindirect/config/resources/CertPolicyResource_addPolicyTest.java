@@ -14,16 +14,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.repository.CertPolicyRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.nhindirect.policy.PolicyLexicon;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 
 public class CertPolicyResource_addPolicyTest extends SpringBaseTest
@@ -45,19 +44,21 @@ public class CertPolicyResource_addPolicyTest extends SpringBaseTest
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<CertPolicy> policiesToAdd = getPoliciesToAdd();
-				
+
 				if (policiesToAdd != null)
 				{
 					policiesToAdd.forEach(addPolicy->
 					{
-						final HttpEntity<CertPolicy> requestEntity = new HttpEntity<>(addPolicy);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy", HttpMethod.PUT, requestEntity, Void.class);
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certpolicy").build())
+							.bodyValue(addPolicy)
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
+					});
 				}
 				doAssertions();
 			}
@@ -160,10 +161,10 @@ public class CertPolicyResource_addPolicyTest extends SpringBaseTest
 
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(409, ex.getStatusCode().value());
 				}
 			}.perform();
@@ -225,33 +226,33 @@ public class CertPolicyResource_addPolicyTest extends SpringBaseTest
 
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
-		}		
-		
+		}
+
 		@Test
 		public void testAddPolicy_errorInLookup_assertServiceError()  throws Exception
 		{
 			new TestPlan()
 			{
 				protected Collection<CertPolicy> policies;
-				
+
 				@Override
 				protected void setupMocks()
 				{
 					try
 					{
 						super.setupMocks();
-						
+
 
 						CertPolicyRepository mockDAO = mock(CertPolicyRepository.class);
 						doThrow(new RuntimeException()).when(mockDAO).findByPolicyNameIgnoreCase((String)any());
-						
+
 						certService.setCertPolicyRepository(mockDAO);
 					}
 					catch (Throwable t)
@@ -259,29 +260,29 @@ public class CertPolicyResource_addPolicyTest extends SpringBaseTest
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					certService.setCertPolicyRepository(policyRepo);
-				}	
-				
+				}
+
 				@Override
 				protected Collection<CertPolicy> getPoliciesToAdd()
 				{
 					try
 					{
 						policies = new ArrayList<CertPolicy>();
-						
+
 						CertPolicy policy = new CertPolicy();
 						policy.setPolicyName("Policy1");
 						policy.setPolicyData(new byte[] {1,2,3});
 						policy.setLexicon(PolicyLexicon.SIMPLE_TEXT_V1);
 						policies.add(policy);
-						
-						
+
+
 						return policies;
 					}
 					catch (Exception e)
@@ -290,12 +291,12 @@ public class CertPolicyResource_addPolicyTest extends SpringBaseTest
 					}
 				}
 
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();

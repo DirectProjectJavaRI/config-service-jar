@@ -14,15 +14,14 @@ import java.util.Collection;
 import org.apache.commons.io.IOUtils;
 import org.nhindirect.config.model.utils.CertUtils;
 import org.nhindirect.config.repository.CertificateRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
-import org.nhindirect.config.test.TestUtils;
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
+import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.Certificate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class CertificateResource_removeCertificatesByOwnerTest extends SpringBaseTest
 {
@@ -43,28 +42,31 @@ public class CertificateResource_removeCertificatesByOwnerTest extends SpringBas
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<Certificate> certsToAdd = getCertsToAdd();
 
 				if (certsToAdd != null)
 				{
 					certsToAdd.forEach(addCert->
 					{
-						final HttpEntity<Certificate> requestEntity = new HttpEntity<>(addCert);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certificate", HttpMethod.PUT, requestEntity, Void.class);
+						ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certificate").build())
+							.bodyValue(addCert)
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
-					});			
+					});
 				}
 
-				final ResponseEntity<Void> resp = 
-						testRestTemplate.exchange("/certificate/{ownder}",
-		                HttpMethod.DELETE, null, Void.class, getOwnerToRemove());
-				
+				ResponseEntity<Void> resp =
+						webClient.delete()
+						.uri(uriBuilder -> uriBuilder.path("/certificate/{owner}").build(getOwnerToRemove()))
+		                .retrieve().toBodilessEntity().block();
+
 				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
-				
+
 				doAssertions();
 			}
 				
@@ -212,10 +214,10 @@ public class CertificateResource_removeCertificatesByOwnerTest extends SpringBas
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();

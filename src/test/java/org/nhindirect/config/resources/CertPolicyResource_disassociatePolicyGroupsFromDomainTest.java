@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.nhindirect.config.BaseTestPlan;
+import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
 import org.nhindirect.config.model.CertPolicy;
 import org.nhindirect.config.model.CertPolicyGroup;
@@ -19,13 +21,10 @@ import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.CertPolicyGroupDomainReltnRepository;
 import org.nhindirect.config.repository.DomainRepository;
-import org.nhindirect.config.test.BaseTestPlan;
-import org.nhindirect.config.test.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -101,49 +100,55 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
+			{
 				final Domain addDomain = getDomainToAdd();
-				
+
 				if (addDomain != null)
 				{
-					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
+					final ResponseEntity<Void> resp = webClient.put()
+						.uri(uriBuilder -> uriBuilder.path("/domain").build())
+						.bodyValue(addDomain)
+						.retrieve().toBodilessEntity().block();
 					if (resp.getStatusCode().value() != 201)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
-				
+
 				final Collection<CertPolicyGroup> groupsToAdd = getGroupsToAdd();
-				
+
 				if (groupsToAdd != null)
 				{
 					groupsToAdd.forEach(addGroup->
 					{
-						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups").build())
+							.bodyValue(addGroup)
+							.retrieve().toBodilessEntity().block();
 						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
+					});
 				}
-				
+
 
 				// associate the bundle and domain
 				if (groupsToAdd != null && addDomain != null)
-				{					
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/domain/{groupName}/{domainName}", HttpMethod.POST, null, Void.class,
-							getGroupNameToAssociate(), getDomainNameToAssociate());
+				{
+					final ResponseEntity<Void> resp = webClient.post()
+						.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups/domain/{groupName}/{domainName}").build(getGroupNameToAssociate(), getDomainNameToAssociate()))
+						.retrieve().toBodilessEntity().block();
 					if (resp.getStatusCode().value() != 204)
 						throw new HttpClientErrorException(resp.getStatusCode());
 				}
-				
+
 				// disassociate
 
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/domain/{domain}/deleteFromDomain", HttpMethod.DELETE, null, Void.class,
-						getDomainNameToDisassociate());
+				final ResponseEntity<Void> resp = webClient.delete()
+					.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups/domain/{domain}/deleteFromDomain").build(getDomainNameToDisassociate()))
+					.retrieve().toBodilessEntity().block();
 				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
-				
+
 				doAssertions();
-				
+
 			}
 				
 			protected void doAssertions() throws Exception
@@ -189,10 +194,10 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
@@ -248,15 +253,15 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
-		}	
-		
+		}
+
 		@Test
 		public void testDisassociatePolicyGroupsFromDomain_errorInDisassociate_assertServiceError()  throws Exception
 		{
@@ -270,12 +275,12 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 						super.setupMocks();
 						CertPolicyGroupDomainReltnRepository mockReltnDAO = mock(CertPolicyGroupDomainReltnRepository.class);
 						DomainRepository mockDomainDAO = mock(DomainRepository.class);
-						
+
 						final org.nhindirect.config.store.Domain dom = new org.nhindirect.config.store.Domain();
 						dom.setDomainName("Test");
 						when(mockDomainDAO.findByDomainNameIgnoreCase("test.com")).thenReturn(Mono.just(dom));
 						doThrow(new RuntimeException()).when(mockReltnDAO).deleteByDomainId(any());
-						
+
 						certService.setDomainRepository(mockDomainDAO);
 						certService.setCertPolicyGroupDomainReltnRepository(mockReltnDAO);
 					}
@@ -284,40 +289,40 @@ public class CertPolicyResource_disassociatePolicyGroupsFromDomainTest extends S
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					certService.setDomainRepository(domainRepo);
 					certService.setCertPolicyGroupDomainReltnRepository(groupDomainReltnRepo);
 				}
-				
+
 				@Override
 				protected  Collection<CertPolicyGroup> getGroupsToAdd()
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected  Domain getDomainToAdd()
 				{
 					return null;
 				}
-				
-				
+
+
 				@Override
 				protected String getDomainNameToDisassociate()
 				{
 					return "test.com";
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
 					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
