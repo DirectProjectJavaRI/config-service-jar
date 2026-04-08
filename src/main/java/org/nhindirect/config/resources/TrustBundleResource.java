@@ -27,7 +27,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.nhindirect.config.model.TrustBundle;
@@ -41,7 +43,6 @@ import org.nhindirect.config.repository.TrustBundleAnchorRepository;
 import org.nhindirect.config.repository.TrustBundleDomainReltnRepository;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
-import org.nhindirect.config.store.Domain;
 import org.nhindirect.config.store.TrustBundleAnchor;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,6 +63,7 @@ import org.springframework.web.server.ResponseStatusException;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * Resource for managing address resources in the configuration service.
@@ -182,68 +184,100 @@ public class TrustBundleResource extends ProtectedResource
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public Flux<TrustBundle> getTrustBundles(@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors)
     {
+    	
+    	log.info("Getting all trust bundles with FetchAnchors={}", fetchAnchors);
+    	
+    	// Collect all bundles first, then fetch all anchors in a single batch query,
+    	// eliminating the N+1 query pattern (was: 1 query per bundle for anchors).
     	return bundleRepo.findAll()
-    		.flatMap(bundle -> 
+    		.collectList()
+    		.flatMapMany(bundles ->
     		{
-    			
-    			final Flux<TrustBundleAnchor> anchorFlux = (!fetchAnchors) ? Flux.fromIterable(new ArrayList<TrustBundleAnchor>()) :
-    							bundleAnchorRepo.findByTrustBundleId(bundle.getId());
+    			if (bundles.isEmpty())
+    				return Flux.empty();
 
-    			return anchorFlux
-    			.collectList()
-    			.map(anchors ->
-    			{
-    				return EntityModelConversion.toModelTrustBundle(bundle , anchors);
-    			});
+    			if (!fetchAnchors)
+    				return Flux.fromIterable(bundles)
+    					.map(bundle -> EntityModelConversion.toModelTrustBundle(bundle, Collections.emptyList()));
+
+    			final List<Long> bundleIds = bundles.stream().map(org.nhindirect.config.store.TrustBundle::getId).collect(Collectors.toList());
+
+    			return bundleAnchorRepo.findByTrustBundleIdIn(bundleIds)
+    				.collectMultimap(TrustBundleAnchor::getTrustBundleId)
+    				.flatMapMany(anchorMap -> Flux.fromIterable(bundles)
+    					.map(bundle -> EntityModelConversion.toModelTrustBundle(bundle,
+    						new ArrayList<>(anchorMap.getOrDefault(bundle.getId(), Collections.emptyList())))));
     		})
-   	     	.onErrorResume(e -> { 
+   	     	.onErrorResume(e -> {
    	    		log.error("Error looking up trust bundles", e);
    	    		return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
-   	    	});	
-    		
-
+   	    	});
     }
     
     @GetMapping(value="domains/bundles/reltns", produces = MediaType.APPLICATION_JSON_VALUE)
     public Flux<TrustBundleDomainReltn> getAllTrustBundleDomainRelts(@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors)
     {
-    		return reltnRepo.findAll()
-    	    		.flatMap(bundleReltn -> 
-    	    		{
-    	    			return bundleRepo.findById(bundleReltn.getTrustBundleId())
-    		    		.flatMap(bundle -> 
-    		    		{
-    		    			
-    		    			final Flux<TrustBundleAnchor> anchorFlux = (!fetchAnchors) ? Flux.fromIterable(new ArrayList<TrustBundleAnchor>()) :
-    		    							bundleAnchorRepo.findByTrustBundleId(bundle.getId());
+    	log.info("Getting all trust bundle domain relatinships with FetchAnchors={}", fetchAnchors);
+    	
+    	// Collect all reltns, then batch-fetch bundles, anchors, and domains in parallel —
+    	// reducing 3N+1 queries down to 4 queries total.
+    	return reltnRepo.findAll()
+    		.collectList()
+    		.flatMapMany(reltns ->
+    		{
+    			if (reltns.isEmpty())
+    				return Flux.empty();
 
-    		    			return anchorFlux
-    		    			.collectList()
-    		    			.map(anchors ->
-    		    			{
-    		    				return EntityModelConversion.toModelTrustBundle(bundle , anchors);
-    		    			});
-    		    		})
-    	  	    		.flatMap(bundle ->
-        	    		{
-        	    			return domainRepo.findById(bundleReltn.getDomainId())
-        	    			.map(domain ->
-        	    			{
-            	    			final TrustBundleDomainReltn newReltn = new TrustBundleDomainReltn();
-            	    			
-            		    		newReltn.setIncoming(bundleReltn.isIncoming());
-            		    		newReltn.setOutgoing(bundleReltn.isOutgoing());	
-            		    		newReltn.setDomain(EntityModelConversion.toModelDomain(domain, Collections.emptyList()));
-            		    		newReltn.setTrustBundle(bundle);
-            		    		
-            	    			return newReltn;
-        	    			});
-        	    		});   
-    	    		})
-	       	     	.onErrorResume(e -> { 
-	       	    		log.error("Error looking up trust bundles", e);
-	       	    		return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
-	       	    	});	
+    			final List<Long> bundleIds = reltns.stream()
+    				.map(org.nhindirect.config.store.TrustBundleDomainReltn::getTrustBundleId)
+    				.distinct().collect(Collectors.toList());
+
+    			final List<Long> domainIds = reltns.stream()
+    				.map(org.nhindirect.config.store.TrustBundleDomainReltn::getDomainId)
+    				.distinct().collect(Collectors.toList());
+
+    			final Mono<Map<Long, org.nhindirect.config.store.TrustBundle>> bundleMapMono =
+    				bundleRepo.findAllById(bundleIds)
+    					.collectMap(org.nhindirect.config.store.TrustBundle::getId);
+
+    			final Mono<Map<Long, Collection<TrustBundleAnchor>>> anchorMapMono = fetchAnchors
+    				? bundleAnchorRepo.findByTrustBundleIdIn(bundleIds)
+    					.collectMultimap(TrustBundleAnchor::getTrustBundleId)
+    				: Mono.just(Collections.emptyMap());
+
+    			final Mono<Map<Long, org.nhindirect.config.store.Domain>> domainMapMono =
+    				domainRepo.findAllById(domainIds)
+    					.collectMap(org.nhindirect.config.store.Domain::getId);
+
+    			return Mono.zip(bundleMapMono, anchorMapMono, domainMapMono)
+    				.flatMapMany(tuple ->
+    				{
+    					final Map<Long, org.nhindirect.config.store.TrustBundle> bundleMap = tuple.getT1();
+    					final Map<Long, Collection<TrustBundleAnchor>> anchorMap = tuple.getT2();
+    					final Map<Long, org.nhindirect.config.store.Domain> domainMap = tuple.getT3();
+
+    					return Flux.fromIterable(reltns)
+    						.filter(r -> bundleMap.containsKey(r.getTrustBundleId()) && domainMap.containsKey(r.getDomainId()))
+    						.map(r ->
+    						{
+    							final org.nhindirect.config.store.TrustBundle bundle = bundleMap.get(r.getTrustBundleId());
+    							final List<TrustBundleAnchor> anchors = new ArrayList<>(
+    								anchorMap.getOrDefault(bundle.getId(), Collections.emptyList()));
+
+    							final TrustBundleDomainReltn newReltn = new TrustBundleDomainReltn();
+    							newReltn.setIncoming(r.isIncoming());
+    							newReltn.setOutgoing(r.isOutgoing());
+    							newReltn.setDomain(EntityModelConversion.toModelDomain(domainMap.get(r.getDomainId()), Collections.emptyList()));
+    							newReltn.setTrustBundle(EntityModelConversion.toModelTrustBundle(bundle, anchors));
+
+    							return newReltn;
+    						});
+    				});
+    		})
+    		.onErrorResume(e -> {
+    			log.error("Error looking up trust bundles", e);
+    			return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+    		});
     }
     
     /**
@@ -255,49 +289,73 @@ public class TrustBundleResource extends ProtectedResource
      * 404 if a domain with the given name does not exist or a status of 404 if no trust bundles are associated with the given name.
      */
     @GetMapping(value="domains/{domainName}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Flux<TrustBundleDomainReltn> getTrustBundlesByDomain(@PathVariable("domainName") String domainName, 
+    public Flux<TrustBundleDomainReltn> getTrustBundlesByDomain(@PathVariable("domainName") String domainName,
     		@RequestParam(name="fetchAnchors", defaultValue="true") boolean fetchAnchors)
     {
+    	
+    	log.info("Getting trust bundles for domain {} with FetchAnchors={}", domainName, fetchAnchors);
+    	
+    	// Collect all reltns for the domain, then batch-fetch bundles and anchors in parallel —
+    	// reducing 2N+2 queries down to 4 queries total.
     	return domainRepo.findByDomainNameIgnoreCase(domainName)
-    	.switchIfEmpty(Mono.just(new Domain()))	
-    	.flatMapMany(domain -> 
+    	.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
+    	.flatMapMany(domain ->
     	{
     		if (domain.getDomainName() == null)
+    		{
+    			log.error("Domain name {} does not exist", domainName);
     			return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
-    		
-    		return reltnRepo.findByDomainId(domain.getId())
-       	    		.flatMap(bundleReltn -> 
-    	    		{
-    	    			return bundleRepo.findById(bundleReltn.getTrustBundleId())
-    		    		.flatMap(bundle -> 
-    		    		{
-    		    			
-    		    			final Flux<TrustBundleAnchor> anchorFlux = (!fetchAnchors) ? Flux.fromIterable(new ArrayList<TrustBundleAnchor>()) :
-    		    							bundleAnchorRepo.findByTrustBundleId(bundle.getId());
+    		}
+    			
 
-    		    			return anchorFlux
-    		    			.collectList()
-    		    			.map(anchors ->
-    		    			{
-    		    				return EntityModelConversion.toModelTrustBundle(bundle , anchors);
-    		    			});
-    		    		})
-    	  	    		.map(bundle ->
-        	    		{
-            	    			final TrustBundleDomainReltn newReltn = new TrustBundleDomainReltn();
-            	    			
-            		    		newReltn.setIncoming(bundleReltn.isIncoming());
-            		    		newReltn.setOutgoing(bundleReltn.isOutgoing());	
-            		    		newReltn.setDomain(EntityModelConversion.toModelDomain(domain, Collections.emptyList()));
-            		    		newReltn.setTrustBundle(bundle);
-            		    		
-            	    			return newReltn;
-        	    		});   
-    	    		})
-	       	     	.onErrorResume(e -> { 
-	       	    		log.error("Error looking up trust bundles", e);
-	       	    		return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
-	       	    	});
+    		return reltnRepo.findByDomainId(domain.getId())
+    			.collectList()
+    			.flatMapMany(reltns ->
+    			{
+    				if (reltns.isEmpty())
+    					return Flux.empty();
+
+    				final List<Long> bundleIds = reltns.stream()
+    					.map(org.nhindirect.config.store.TrustBundleDomainReltn::getTrustBundleId)
+    					.collect(Collectors.toList());
+
+    				final Mono<Map<Long, org.nhindirect.config.store.TrustBundle>> bundleMapMono =
+    					bundleRepo.findAllById(bundleIds)
+    						.collectMap(org.nhindirect.config.store.TrustBundle::getId);
+
+    				final Mono<Map<Long, Collection<TrustBundleAnchor>>> anchorMapMono = fetchAnchors
+    					? bundleAnchorRepo.findByTrustBundleIdIn(bundleIds)
+    						.collectMultimap(TrustBundleAnchor::getTrustBundleId)
+    					: Mono.just(Collections.emptyMap());
+
+    				return Mono.zip(bundleMapMono, anchorMapMono)
+    					.flatMapMany(tuple ->
+    					{
+    						final Map<Long, org.nhindirect.config.store.TrustBundle> bundleMap = tuple.getT1();
+    						final Map<Long, Collection<TrustBundleAnchor>> anchorMap = tuple.getT2();
+
+    						return Flux.fromIterable(reltns)
+    							.filter(r -> bundleMap.containsKey(r.getTrustBundleId()))
+    							.map(r ->
+    							{
+    								final org.nhindirect.config.store.TrustBundle bundle = bundleMap.get(r.getTrustBundleId());
+    								final List<TrustBundleAnchor> anchors = new ArrayList<>(
+    									anchorMap.getOrDefault(bundle.getId(), Collections.emptyList()));
+
+    								final TrustBundleDomainReltn newReltn = new TrustBundleDomainReltn();
+    								newReltn.setIncoming(r.isIncoming());
+    								newReltn.setOutgoing(r.isOutgoing());
+    								newReltn.setDomain(EntityModelConversion.toModelDomain(domain, Collections.emptyList()));
+    								newReltn.setTrustBundle(EntityModelConversion.toModelTrustBundle(bundle, anchors));
+
+    								return newReltn;
+    							});
+    					});
+    			})
+    			.onErrorResume(e -> {
+    				log.error("Error looking up trust bundles", e);
+    				return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+    			});
     	});
     }
     
@@ -310,12 +368,19 @@ public class TrustBundleResource extends ProtectedResource
     @GetMapping(value="{bundleName}", produces = MediaType.APPLICATION_JSON_VALUE)
     public Mono<TrustBundle> getTrustBundleByName(@PathVariable("bundleName") String bundleName)
     {
+    	
+    	log.info("Getting trust bundle with name {}", bundleName);
+    	
 		return bundleRepo.findByBundleNameIgnoreCase(bundleName)
 	    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.TrustBundle()))
 		.flatMap(bundle ->
 		{
 			if (bundle.getBundleName() == null)
+			{
+				log.info("Trust bundle with name {} does not exist", bundleName);
 				return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+			}
+				
 			
 			final Flux<TrustBundleAnchor> anchorFlux = 
 				bundleAnchorRepo.findByTrustBundleId(bundle.getId());
@@ -343,12 +408,18 @@ public class TrustBundleResource extends ProtectedResource
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<Void> addTrustBundle(@RequestBody TrustBundle bundle)
     {
+    	
+    	log.info("Adding trust bundle with name {}", bundle.getBundleName());
+    	
     	return bundleRepo.findByBundleNameIgnoreCase(bundle.getBundleName())
     	.switchIfEmpty(Mono.just(new org.nhindirect.config.store.TrustBundle()))
     	.flatMap(foundBundle ->
     	{
-    		if (foundBundle.getBundleName() != null)
-    			return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+    		if (foundBundle.getBundleName() != null) {
+    	    	log.error("Trust bundle with name {} already exists", bundle.getBundleName());
+    	    	return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+    		}
+    			
     		
     		Map.Entry<org.nhindirect.config.store.TrustBundle, Collection<org.nhindirect.config.store.TrustBundleAnchor>> entry = EntityModelConversion.toEntityTrustBundle(bundle);
     		
@@ -374,12 +445,18 @@ public class TrustBundleResource extends ProtectedResource
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> refreshTrustBundle(@PathVariable("bundle") String bundleName)    
     {
+    	log.info("Refreshing trust bundle with name {}",bundleName);
+    	
     	return bundleRepo.findByBundleNameIgnoreCase(bundleName)
     	.switchIfEmpty(Mono.just(new org.nhindirect.config.store.TrustBundle()))
     	.flatMap(foundBundle ->
     	{
     		if (foundBundle.getBundleName() == null)
+    		{
+    			log.info("Trust bundle with name {} does not exists",bundleName);
     			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    		}
+    			
     			
     	    return bundleRefreshProcessor.refreshBundle(foundBundle).then();
     		  
@@ -395,12 +472,17 @@ public class TrustBundleResource extends ProtectedResource
     @DeleteMapping("{bundle}")
     public Mono<Void> deleteBundle(@PathVariable("bundle") String bundleName)
     {
+    	log.info("Deleting trust bundle with name {}",bundleName);
+    	
     	return bundleRepo.findByBundleNameIgnoreCase(bundleName)
     	.switchIfEmpty(Mono.just(new org.nhindirect.config.store.TrustBundle()))
     	.flatMap(foundBundle ->
     	{
-    		if (foundBundle.getBundleName() == null)
-    			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    		if (foundBundle.getBundleName() == null) {
+    	    	log.error("Trust bundle with name {} does not exist.",bundleName);
+    	    	return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    		}
+    			
     		
     		return bundleAnchorRepo.deleteByTrustBundleId(foundBundle.getId())
     		.then(reltnRepo.deleteByTrustBundleId(foundBundle.getId())
@@ -425,12 +507,18 @@ public class TrustBundleResource extends ProtectedResource
     public Mono<Void> updateSigningCert(@PathVariable("bundle") String bundleName, @RequestBody(required=false) byte[] certData)
     {   
     	
+    	log.info("Updating signing cert for trust bundle with name {}",bundleName);
+    	
     	return bundleRepo.findByBundleNameIgnoreCase(bundleName)
     	.switchIfEmpty(Mono.just(new org.nhindirect.config.store.TrustBundle()))
     	.flatMap(foundBundle ->
     	{
-    		if (foundBundle.getBundleName() == null)
+    		if (foundBundle.getBundleName() == null) {
+    			log.error("Trust bundle with name {} does not exists",bundleName);
     			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    			
+    		}
+    			
     		try
     		{
     			foundBundle.setSigningCertificateData(null);
@@ -477,12 +565,19 @@ public class TrustBundleResource extends ProtectedResource
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> updateBundleAttributes(@PathVariable("bundle") String bundleName, @RequestBody TrustBundle bundleData)
     {  
+    	
+    	log.info("Updating trust bundle attributes for trust bundle with name {}",bundleName);
+    	
     	return bundleRepo.findByBundleNameIgnoreCase(bundleName)
     	.switchIfEmpty(Mono.just(new org.nhindirect.config.store.TrustBundle()))
     	.flatMap(foundBundle ->
     	{
     		if (foundBundle.getBundleName() == null)
+    		{
+    			log.error("Trust bundle with name {} does not exists",bundleName);
     			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    		}
+    			
 
         	// check to see if the bundle info is the same... if so, then exit
         	if (foundBundle.getBundleName().equals(bundleData.getBundleName()) &&
@@ -538,16 +633,23 @@ public class TrustBundleResource extends ProtectedResource
 				foundBundle.setBundleURL(bundleData.getBundleURL());				
 			
 			return bundleRepo.save(foundBundle)
-  		    .doOnSuccess(trustBundle -> 
+  		    .doOnSuccess(trustBundle ->
   		    {
     			// if the URL changed, the bundle needs to be refreshed
     			if (bundleData.getBundleURL() != null && !bundleData.getBundleURL().isEmpty() && !oldBundleURL.equals(bundleData.getBundleURL()))
     			{
-    				bundleRefreshProcessor.refreshBundle(foundBundle);
-    			}      			  
+    				// Subscribe explicitly so the refresh actually executes; run on boundedElastic
+    				// so blocking I/O inside the refresh processor does not stall the event loop
+    				bundleRefreshProcessor.refreshBundle(trustBundle)
+    					.subscribeOn(Schedulers.boundedElastic())
+    					.subscribe(
+    						null,
+    						ex -> log.error("Error refreshing bundle after URL update for bundle {}", trustBundle.getBundleName(), ex)
+    					);
+    			}
       		})
       		.then()
-       	    .onErrorResume(e -> { 
+       	    .onErrorResume(e -> {
          	    		log.error("Error updating bundle attributes", e);
          	    		return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
          	    	});    		  
@@ -568,20 +670,29 @@ public class TrustBundleResource extends ProtectedResource
     public Mono<Void> associateTrustBundleToDomain(@PathVariable("bundle") String bundleName, @PathVariable("domain") String domainName,
     		@RequestParam(name="incoming", defaultValue="true") boolean incoming, @RequestParam(name="outgoing", defaultValue="true") boolean outgoing)
     {
+    	log.info("Associating trust bundle with name {} to domain {}",bundleName, domainName);
+    	
     	return  bundleRepo.findByBundleNameIgnoreCase(bundleName)
     	.switchIfEmpty(Mono.just(new org.nhindirect.config.store.TrustBundle()))
     	.flatMap(foundBundle ->
     	{
     		if (foundBundle.getBundleName() == null)
+    		{
+    			log.error("Trust bundle with name {} does not exist", bundleName);
     			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
-    		
+    		}
+
 
     		return domainRepo.findByDomainNameIgnoreCase(domainName)
     			.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
     			.flatMap(foundDomain ->
     			{
     	    		if (foundDomain.getDomainName() == null)
-    	    			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));    				
+    	    		{
+    	    			log.error("Domain {} does not exist {}", domainName);
+    	    			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));  
+    	    		}
+    	    			  				
     				
     	    		final org.nhindirect.config.store.TrustBundleDomainReltn reltn = 
     	    				new org.nhindirect.config.store.TrustBundleDomainReltn();
@@ -613,20 +724,28 @@ public class TrustBundleResource extends ProtectedResource
     public Mono<Void> disassociateTrustBundleFromDomain(@PathVariable("bundle") String bundleName, @PathVariable("domain") String domainName)
     {    
     	
+    	log.info("Disassociating trust bundle with name {} from domain {}",bundleName, domainName);
+    	
     	return  bundleRepo.findByBundleNameIgnoreCase(bundleName)
     	.switchIfEmpty(Mono.just(new org.nhindirect.config.store.TrustBundle()))
     	.flatMap(foundBundle ->
     	{
-    		if (foundBundle.getBundleName() == null)
+    		if (foundBundle.getBundleName() == null) {
+    			log.error("Trust bundle with name {} does not exist", bundleName);
     			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    		}
+    			
     		
 
     		return domainRepo.findByDomainNameIgnoreCase(domainName)
     			.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
     			.flatMap(foundDomain ->
     			{
-    	    		if (foundDomain.getDomainName() == null)
-    	    			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));    				
+    	    		if (foundDomain.getDomainName() == null) {
+    	    			log.error("Domain {} does not exist {}", domainName);
+    	    			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));   
+    	    		}
+    	    			 				
     				
 
     	    		return reltnRepo.deleteByDomainIdAndTrustBundleId(foundDomain.getId(), foundBundle.getId())
@@ -648,12 +767,18 @@ public class TrustBundleResource extends ProtectedResource
     @DeleteMapping("{domain}/deleteFromDomain")
     public Mono<Void> disassociateTrustBundlesFromDomain(@PathVariable("domain") String domainName)
     {   
+    	
+    	log.info("Disassociating all trust bundles from domain {}", domainName);
+    	
 		return domainRepo.findByDomainNameIgnoreCase(domainName)
     			.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
     			.flatMap(foundDomain ->
     			{
-    	    		if (foundDomain.getDomainName() == null)
-    	    			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));    
+    	    		if (foundDomain.getDomainName() == null) {
+    	    			log.error("Domain {} does not exist {}", domainName);
+    	    			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));  
+    	    		}
+    	    			  
     	    		
     	    		
     	    		return reltnRepo.deleteByDomainId(foundDomain.getId())
@@ -674,12 +799,17 @@ public class TrustBundleResource extends ProtectedResource
     @DeleteMapping("{bundle}/deleteFromBundle")
     public Mono<Void> disassociateTrustBundleFromDomains(@PathVariable("bundle") String bundleName)
     {   
+    	log.info("Disassociating all trust bundle {} from all domains", bundleName);
+    	
     	return  bundleRepo.findByBundleNameIgnoreCase(bundleName)
     	.switchIfEmpty(Mono.just(new org.nhindirect.config.store.TrustBundle()))
     	.flatMap(foundBundle ->
     	{
-    		if (foundBundle.getBundleName() == null)
+    		if (foundBundle.getBundleName() == null) {
+    			log.error("Trust bundle with name {} does not exist", bundleName);
     			return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    		}
+    			
     	
     		return reltnRepo.deleteByTrustBundleId(foundBundle.getId())
 	                .then()

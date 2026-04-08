@@ -91,9 +91,11 @@ public class DNSResource extends ProtectedResource
      * a status of 204 if no records match the search criteria.
      */
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public Flux<DNSRecord> getDNSRecords(@RequestParam(name="type", defaultValue = "-1")int type, 
+    public Flux<DNSRecord> getDNSRecords(@RequestParam(name="type", defaultValue = "-1")int type,
     		@RequestParam(name="name", defaultValue="") String name)
     {
+    	log.info("Getting DNS records with type={} name={}", type, name);
+
     	Flux<org.nhindirect.config.store.DNSRecord> retRecords;
 
     	if (type > -1 && !name.isEmpty())
@@ -138,9 +140,11 @@ public class DNSResource extends ProtectedResource
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<Void> addDNSRecord(@RequestBody DNSRecord record)
     {
+    	log.info("Adding DNS record with name {} and type {}", record.getName(), record.getType());
+
     	if (record.getType() == Type.ANY)
     	{
-    		log.error("Cannot add record with type ANY");
+    		log.error("Cannot add DNS record with type ANY");
     		return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST));
     	}
     		
@@ -155,7 +159,10 @@ public class DNSResource extends ProtectedResource
 		 .flatMap(records -> 
 		 {
 			 if (!records.isEmpty())
+			 {
+				 log.error("DNS record with name {} and type {} already exists", record.getName(), record.getType());
 				 return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+			 }
 			 
     		final org.nhindirect.config.store.DNSRecord addRec = EntityModelConversion.toEntityDNSRecord(record);
     		addRec.setId(null);
@@ -179,13 +186,18 @@ public class DNSResource extends ProtectedResource
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> updateDNSRecord(@RequestBody DNSRecord updateRecord)
-    {       	
+    {
+    	log.info("Updating DNS record with id {}", updateRecord.getId());
+
     	return dnsRepo.findById(updateRecord.getId())
     		.switchIfEmpty(Mono.just(new org.nhindirect.config.store.DNSRecord()))
-    		.flatMap(record -> 
+    		.flatMap(record ->
     		{
     			if (record.getName() == null)
+    			{
+    				log.error("DNS record with id {} does not exist", updateRecord.getId());
     				return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    			}
     			
     	    	if (!updateRecord.getName().endsWith("."))
     	    		updateRecord.setName(updateRecord.getName() + ".");
@@ -207,15 +219,20 @@ public class DNSResource extends ProtectedResource
     @DeleteMapping("{ids}")
     public Mono<Void> removeDNSRecordsByIds(@PathVariable("ids") String ids)
     {
+    	log.info("Removing DNS records by ids {}", ids);
+
     	final String[] idArray = ids.split(",");
-    	
+
 		return Flux.fromStream(Arrays.stream(idArray))
 		.flatMap(id ->
 		{
 			return dnsRepo.deleteById(Long.parseLong(id));
 		})
 		.collectList()
-		.flatMap(deletes -> Mono.empty()); 
-
+		.flatMap(deletes -> Mono.<Void>empty())
+		.onErrorResume(e -> {
+			log.error("Error removing DNS records by ids {}.", ids, e);
+			return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+		});
     }
 }

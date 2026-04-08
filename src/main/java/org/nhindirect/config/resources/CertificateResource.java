@@ -100,7 +100,7 @@ public class CertificateResource extends ProtectedResource
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public Flux<Certificate> getAllCertificates()
     {
-		
+    	log.info("Getting all certificates");
 		return getCertificatesByOwner(null);
     }
     
@@ -112,8 +112,11 @@ public class CertificateResource extends ProtectedResource
      */
     @GetMapping(value="/{owner}", produces = MediaType.APPLICATION_JSON_VALUE)
     public Flux<Certificate> getCertificatesByOwner(@PathVariable("owner") String owner)
-    {  	    	
-		final Flux<org.nhindirect.config.store.Certificate> lookupFlux = 
+    {
+    	if (!StringUtils.isEmpty(owner))
+    		log.info("Getting certificates for owner {}", owner);
+
+		final Flux<org.nhindirect.config.store.Certificate> lookupFlux =
 				(StringUtils.isEmpty(owner)) ? certRepo.findAll() : certRepo.findByOwnerIgnoreCase(owner);	
 		
 		return lookupFlux
@@ -136,9 +139,10 @@ public class CertificateResource extends ProtectedResource
      * if no matching certificate is found.
      */
     @GetMapping(value="/{owner}/{thumbprint}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<?> getCertificatesByOwnerAndThumbprint(@PathVariable("owner") String owner, 
+    public Mono<?> getCertificatesByOwnerAndThumbprint(@PathVariable("owner") String owner,
     		@PathVariable("thumbprint") String thumbprint)
     {
+    	log.info("Getting certificate for owner {} with thumbprint {}", owner, thumbprint);
 		Mono<List<org.nhindirect.config.store.Certificate>> retCertificates = null;
 		
 		if (StringUtils.isEmpty(owner) && StringUtils.isEmpty(thumbprint))
@@ -180,10 +184,12 @@ public class CertificateResource extends ProtectedResource
      * @param cert The certificate to add.
      * @return Returns a status of 201 if the certificate was added or a status of 409 if the certificate already exists.
      */
-    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)  
+    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<Void> addCertificate(@RequestBody Certificate cert)
     {
+    	log.info("Adding certificate for owner {}", cert.getOwner());
+
     	CertContainer cont = null;
 		cont = CertUtils.toCertContainer(cert.getData());
 		// get the owner if it doesn't alreay exists
@@ -248,9 +254,10 @@ public class CertificateResource extends ProtectedResource
      * @param ids Comma delimited list of system ids to delete.
      * @return Status of 200 if the certificates were deleted.
      */
-    @DeleteMapping(value="ids/{ids}")   
+    @DeleteMapping(value="ids/{ids}")
     public Mono<Void> removeCertificatesByIds(@PathVariable("ids") String ids)
     {
+    	log.info("Removing certificates by ids {}", ids);
     	final String[] idArray = ids.split(",");
     	final List<Long> idList = new ArrayList<>();
     	
@@ -270,9 +277,10 @@ public class CertificateResource extends ProtectedResource
      * @param owner The owner of the certificate.
      * @return Status of 200 if the certificates were deleted.
      */
-    @DeleteMapping(value="{owner}")  
+    @DeleteMapping(value="{owner}")
     public Mono<Void> removeCertificatesByOwner(@PathVariable("owner") String owner)
     {
+    	log.info("Removing certificates for owner {}", owner);
 		return certRepo.deleteByOwnerIgnoreCase(owner)
 		     	.onErrorResume(e -> { 
 		    		log.error("Error removing certificates by owner.", e);

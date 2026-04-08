@@ -70,6 +70,7 @@ import io.netty.handler.timeout.WriteTimeoutHandler;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
 
@@ -411,27 +412,40 @@ public class DefaultBundleRefreshProcessorImpl implements BundleRefreshProcessor
 			if (uri.getScheme().compareToIgnoreCase("file") == 0)
 			{
 				// file scheme URIs are used by unit tests
-				final ByteArrayOutputStream ouStream = new ByteArrayOutputStream();
-
-				
-				final URL certURL = new URL(bundle.getBundleURL());
-				
-				final URLConnection connection = certURL.openConnection();
-				
-				// open the URL as in input stream
-				InputStream inputStream = connection.getInputStream();
-				
-				int BUF_SIZE = 2048;		
-				int count = 0;
-
-				final byte buf[] = new byte[BUF_SIZE];
-				
-				while ((count = inputStream.read(buf)) > -1)
+				// Wrap blocking file I/O in fromCallable and run on the bounded elastic scheduler
+				// to avoid blocking the reactive event-loop thread
+				return Mono.fromCallable(() ->
 				{
-					ouStream.write(buf, 0, count);
-				}
-				
-				return Mono.just(ouStream.toByteArray());
+					final ByteArrayOutputStream ouStream = new ByteArrayOutputStream();
+
+					final URL certURL = new URL(bundle.getBundleURL());
+
+					final URLConnection connection = certURL.openConnection();
+
+					// open the URL as in input stream
+					final InputStream inputStream = connection.getInputStream();
+
+					final int BUF_SIZE = 2048;
+					int count = 0;
+					final byte buf[] = new byte[BUF_SIZE];
+
+					while ((count = inputStream.read(buf)) > -1)
+					{
+						ouStream.write(buf, 0, count);
+					}
+
+					return ouStream.toByteArray();
+				})
+				.subscribeOn(Schedulers.boundedElastic())
+				.onErrorResume(e ->
+				{
+					log.warn("Failed to download bundle from URL {}", bundle.getBundleURL(), e);
+
+					bundle.setLastRefreshAttempt(processAttempStart);
+					bundle.setLastRefreshError(BundleRefreshError.NOT_FOUND.ordinal());
+					return bundleRepo.save(bundle)
+							.then(Mono.empty());
+				});
 
 			}
 			else

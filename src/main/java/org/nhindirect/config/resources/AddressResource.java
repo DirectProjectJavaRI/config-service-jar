@@ -100,13 +100,18 @@ public class AddressResource extends ProtectedResource
      */ 
     @GetMapping(value="{address}", produces = MediaType.APPLICATION_JSON_VALUE)
     public Mono<Address> getAddress(@PathVariable("address") String address)
-    {   
+    {
+    	log.info("Getting address {}", address);
+
 		return addRepo.findByEmailAddressIgnoreCase(address)
 			    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Address()))
 				.flatMap(addr ->
 				{
 					if (addr.getDomainId() == null)
+					{
+						log.info("Address {} does not exist", address);
 						return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+					}
 				
 					return domainRepo.findById(addr.getDomainId())
 							.map(domain -> EntityModelConversion.toModelAddress(addr, domain.getDomainName()))
@@ -123,15 +128,20 @@ public class AddressResource extends ProtectedResource
      * @return  A JSON representation of a list of addresses.  Returns a 404 status if the domain does not exists
      * or a 204 status if no addresses are configured for the domain.
      */
-    @GetMapping(value="domain/{domainName}", produces = MediaType.APPLICATION_JSON_VALUE)     
+    @GetMapping(value="domain/{domainName}", produces = MediaType.APPLICATION_JSON_VALUE)
     public Flux<Address> getAddressesByDomain(@PathVariable("domainName") String domainName)
-    {   	
+    {
+    	log.info("Getting addresses for domain {}", domainName);
+
 		return domainRepo.findByDomainNameIgnoreCase(domainName)
 			    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
 				.flatMapMany(domain ->
 				{
 					if (domain.getDomainName() == null)
+					{
+						log.error("Domain {} does not exist", domainName);
 						return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+					}
 					
 					return addRepo.findByDomainId(domain.getId())
 		    				.map(address -> {
@@ -151,26 +161,37 @@ public class AddressResource extends ProtectedResource
      * @return Returns status 201 if added successfully, 404 if the domain does not exist, or 409 if
      * the address already exists.
      */
-    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)   
+    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<Void> addAddress(@RequestBody Address address) 
+    public Mono<Void> addAddress(@RequestBody Address address)
     {
+    	log.info("Adding address {} to domain {}", address.getEmailAddress(), address.getDomainName());
+
     	if (address.getDomainName() == null || address.getDomainName().isEmpty())
+    	{
+    		log.error("Domain name is required when adding an address");
     		return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST));
-    	
+    	}
+
 		return domainRepo.findByDomainNameIgnoreCase(address.getDomainName())
 			    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
 				.flatMap(domain ->
 				{
 					if (domain.getDomainName() == null)
+					{
+						log.error("Domain {} does not exist", address.getDomainName());
 						return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
-					
+					}
+
 					return addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress())
 					 .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Address()))
-					 .flatMap(addr -> 
+					 .flatMap(addr ->
 					 {
 						 if (addr.getDomainId() != null)
-							 return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT)); 
+						 {
+							 log.error("Address {} already exists", address.getEmailAddress());
+							 return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+						 }
 						 
 						 
 					     final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address, domain);
@@ -192,27 +213,37 @@ public class AddressResource extends ProtectedResource
      * @return Returns 204 if the address is updated successfully, 400 if the domain name is empty, 404 if the
      * domain or address does not exist.
      */
-    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)    
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public Mono<Void> updateAddress(@RequestBody Address address) 
+    public Mono<Void> updateAddress(@RequestBody Address address)
     {
+    	log.info("Updating address {}", address.getEmailAddress());
+
     	if (address.getDomainName() == null || address.getDomainName().isEmpty())
+    	{
+    		log.error("Domain name is required when updating an address");
     		return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST));
-    	
-    	
+    	}
+
 		return domainRepo.findByDomainNameIgnoreCase(address.getDomainName())
 			    .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
 				.flatMap(domain ->
 				{
 					if (domain.getDomainName() == null)
+					{
+						log.error("Domain {} does not exist", address.getDomainName());
 						return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
-					
+					}
+
 					return addRepo.findByEmailAddressIgnoreCase(address.getEmailAddress())
 					 .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Address()))
-					 .flatMap(addr -> 
+					 .flatMap(addr ->
 					 {
 						 if (addr.getDomainId() == null)
-							 return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)); 
+						 {
+							 log.error("Address {} does not exist", address.getEmailAddress());
+							 return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+						 }
 						 
 				    	final org.nhindirect.config.store.Address toAdd = EntityModelConversion.toEntityAddress(address, domain);
 				    	toAdd.setId(addr.getId());
@@ -232,15 +263,20 @@ public class AddressResource extends ProtectedResource
      * @param address The address to removed.
      * @return Returns a status of 200 if the address was removed or 404 if the address does not exists.
      */
-    @DeleteMapping(value="{address}")  
-    public Mono<Void> removedAddress(@PathVariable("address") String address)   
+    @DeleteMapping(value="{address}")
+    public Mono<Void> removedAddress(@PathVariable("address") String address)
     {
+    	log.info("Removing address {}", address);
+
 		return addRepo.findByEmailAddressIgnoreCase(address)
 				 .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Address()))
-				 .flatMap(addr -> 
+				 .flatMap(addr ->
 				 {
 					 if (addr.getDomainId() == null)
-						 return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)); 
+					 {
+						 log.error("Address {} does not exist", address);
+						 return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+					 }
     	
 					 return addRepo.deleteById(addr.getId())
 						.then()
