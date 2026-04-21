@@ -21,9 +21,12 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.resources;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.nhindirect.config.model.Domain;
@@ -204,15 +207,34 @@ public class DomainResource extends ProtectedResource
 			domains = domainRepo.findByDomainNameContainingIgnoreCaseAndStatus(domainName, status.ordinal());
 
 
-		return domains.flatMap(domain -> 
+		final int BATCH_SIZE = 250;
+
+		return domains.collectList()
+		.flatMapMany(domainList ->
 		{
-			return addRepo.findByDomainId(domain.getId())
-			.collectList()
-			.switchIfEmpty(Mono.just(Collections.emptyList()))
-			.map(addrs -> EntityModelConversion.toModelDomain(domain, addrs));
-			
+			if (domainList.isEmpty())
+				return Flux.empty();
+
+			// partition domain IDs into batches to avoid oversized IN clauses
+			final List<Long> allIds = domainList.stream()
+				.map(org.nhindirect.config.store.Domain::getId)
+				.collect(Collectors.toList());
+
+			final List<List<Long>> batches = new ArrayList<>();
+			for (int i = 0; i < allIds.size(); i += BATCH_SIZE)
+				batches.add(allIds.subList(i, Math.min(i + BATCH_SIZE, allIds.size())));
+
+			// fetch all addresses across all batches, then group by domainId
+			return Flux.fromIterable(batches)
+			.flatMap(batch -> addRepo.findByDomainIdIn(batch))
+			.collectMultimap(org.nhindirect.config.store.Address::getDomainId)
+			.flatMapMany(addrMap ->
+				Flux.fromIterable(domainList)
+				.map(domain -> EntityModelConversion.toModelDomain(domain,
+					new ArrayList<>(addrMap.getOrDefault(domain.getId(), Collections.emptyList()))))
+			);
 		})
-     	.onErrorResume(e -> { 
+     	.onErrorResume(e -> {
     		log.error("Error looking up domains.", e);
     		return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
     	});
