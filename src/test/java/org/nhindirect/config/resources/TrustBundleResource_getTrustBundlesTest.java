@@ -20,8 +20,6 @@ import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -57,9 +55,11 @@ public class TrustBundleResource_getTrustBundlesTest extends SpringBaseTest
 				{
 					bundlesToAdd.forEach(addBundle->
 					{
-						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/trustbundle").build())
+							.bodyValue(addBundle)
+							.retrieve().toBodilessEntity().block();
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
@@ -400,7 +400,7 @@ public class TrustBundleResource_getTrustBundlesTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

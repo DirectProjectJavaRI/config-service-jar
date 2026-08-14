@@ -19,10 +19,8 @@ import org.nhindirect.config.model.Anchor;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.AnchorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 
 public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
@@ -45,21 +43,23 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 		
 		@Override
 		protected void performInner() throws Exception
-		{				
-			
+		{
+
 			final Collection<Anchor> anchorsToAdd = getAnchorsToAdd();
-			
+
 			if (anchorsToAdd != null)
 			{
-				anchorsToAdd.forEach(addAnchor->		
+				anchorsToAdd.forEach(addAnchor->
 				{
-					final HttpEntity<Anchor> requestEntity = new HttpEntity<>(addAnchor);
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/anchor", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
-						throw new HttpClientErrorException(resp.getStatusCode());
+					final ResponseEntity<Void> resp = webClient.put()
+						.uri(uriBuilder -> uriBuilder.path("/anchor").build())
+						.bodyValue(addAnchor)
+						.retrieve().toBodilessEntity().block();
+					if (resp.getStatusCode().value() != 201)
+						throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 				});
 			}
-		
+
 			final Collection<Long> ids = getIdsToRemove();
 			StringBuilder builder = new StringBuilder();
 			int cnt = 0;
@@ -68,16 +68,17 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 				builder.append(id);
 				if (cnt < ids.size() - 1)
 					builder.append(",");
-				
+
 				++cnt;
 			}
 
-			final ResponseEntity<?> resp = 
-					testRestTemplate.exchange("/anchor/ids/" + builder.toString(), HttpMethod.DELETE, null, Void.class);
-				
-			if (resp.getStatusCodeValue() != 200)
-				throw new HttpClientErrorException(resp.getStatusCode());
-			
+			final ResponseEntity<Void> resp = webClient.delete()
+				.uri(uriBuilder -> uriBuilder.path("/anchor/ids/{ids}").build(builder.toString()))
+				.retrieve().toBodilessEntity().block();
+
+			if (resp.getStatusCode().value() != 200)
+				throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
+
 			doAssertions();
 		}
 		
@@ -261,11 +262,11 @@ public class AnchorResource_removeAnchorsByIdsTest extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	

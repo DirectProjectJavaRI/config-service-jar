@@ -21,10 +21,7 @@ import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.AnchorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class AnchorResource_getAnchorsTest extends SpringBaseTest
@@ -44,27 +41,29 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 		
 		@Override
 		protected void performInner() throws Exception
-		{				
-			
+		{
+
 			final Collection<Anchor> anchorsToAdd = getAnchorsToAdd();
-			
+
 			if (anchorsToAdd != null)
 			{
-				anchorsToAdd.forEach(addAnchor->		
+				anchorsToAdd.forEach(addAnchor->
 				{
-					final HttpEntity<Anchor> requestEntity = new HttpEntity<>(addAnchor);
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/anchor", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
-						throw new HttpClientErrorException(resp.getStatusCode());
+					final ResponseEntity<Void> resp = webClient.put()
+						.uri(uriBuilder -> uriBuilder.path("/anchor").build())
+						.bodyValue(addAnchor)
+						.retrieve().toBodilessEntity().block();
+					if (resp.getStatusCode().value() != 201)
+						throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 				});
 			}
-			
+
 			final Collection<Anchor> getAnchors = webClient.get()
-			.uri(uriBuilder ->  uriBuilder.path("/anchor/").build())
+			.uri(uriBuilder ->  uriBuilder.path("/anchor").build())
 			.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Anchor>>() {}).block();
 
 			doAssertions(getAnchors);
-			
+
 		}
 			
 		protected void doAssertions(Collection<Anchor> anchors) throws Exception
@@ -205,7 +204,7 @@ public class AnchorResource_getAnchorsTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof WebClientResponseException);
 				WebClientResponseException ex = (WebClientResponseException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		

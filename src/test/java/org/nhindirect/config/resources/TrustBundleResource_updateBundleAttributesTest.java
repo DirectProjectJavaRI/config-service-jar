@@ -20,10 +20,9 @@ import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -51,39 +50,48 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 				
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<TrustBundle> bundlesToAdd = getBundlesToAdd();
-				
+
 				if (bundlesToAdd != null)
 				{
 					bundlesToAdd.forEach(addBundle->
 					{
-						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/trustbundle").build())
+							.bodyValue(addBundle)
+							.retrieve().toBodilessEntity().block();
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
-				
-				
-				final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(getBundleDataToUpdate());
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/bundleAttributes", HttpMethod.POST, requestEntity, Void.class, 
-						getBundleToUpdate());
-				if (resp.getStatusCodeValue() != 204)
-					throw new HttpClientErrorException(resp.getStatusCode());
-				
-				final ResponseEntity<TrustBundle> getBundle = testRestTemplate.getForEntity("/trustbundle/" + getBundleUpdatedName(), TrustBundle.class);
-				
-				int statusCode = getBundle.getStatusCodeValue();
-				if (statusCode == 404)
-					doAssertions(null);
-				else if (statusCode == 200)
-					doAssertions(getBundle.getBody());
-				else
-					throw new HttpClientErrorException(getBundle.getStatusCode());	
 
-				
+
+				final ResponseEntity<Void> resp = webClient.post()
+					.uri(uriBuilder -> uriBuilder.path("/trustbundle/{bundle}/bundleAttributes").build(getBundleToUpdate()))
+					.bodyValue(getBundleDataToUpdate())
+					.retrieve().toBodilessEntity().block();
+				if (resp.getStatusCode().value() != 204)
+					throw new HttpClientErrorException(resp.getStatusCode());
+
+				try
+				{
+					final ResponseEntity<TrustBundle> getBundle = webClient.get()
+						.uri("/trustbundle/" + getBundleUpdatedName())
+						.retrieve().toEntity(TrustBundle.class).block();
+
+					doAssertions(getBundle.getBody());
+				}
+				catch (WebClientResponseException e)
+				{
+					if (e.getStatusCode().value() == 404)
+						doAssertions(null);
+					else
+						throw e;
+				}
+
+
 			}
 				
 			protected void doAssertions(TrustBundle bundle) throws Exception
@@ -471,11 +479,11 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(400, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(400, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -529,11 +537,11 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -594,11 +602,11 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}
@@ -621,7 +629,7 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
 						when(mockDAO.findByBundleNameIgnoreCase("testBundle1")).thenReturn(Mono.just(bundle));
 						doThrow(new RuntimeException()).when(mockDAO).save(any());
-						
+
 						bundleService.setTrustBundleRepository(mockDAO);
 					}
 					catch (Throwable t)
@@ -629,45 +637,45 @@ public class TrustBundleResource_updateBundleAttributesTest extends SpringBaseTe
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					bundleService.setTrustBundleRepository(bundleRepo);
 				}
-				
+
 				@Override
 				protected Collection<TrustBundle> getBundlesToAdd()
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected TrustBundle getBundleDataToUpdate() throws Exception
 				{
 					return new TrustBundle();
 				}
-				
+
 				@Override
 				protected String getBundleToUpdate()
 				{
 					return "testBundle1";
 				}
-				
-				@Override 
+
+				@Override
 				protected String getBundleUpdatedName()
 				{
 					return "testBundle1";
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}

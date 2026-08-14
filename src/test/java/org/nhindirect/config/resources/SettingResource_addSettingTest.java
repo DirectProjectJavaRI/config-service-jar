@@ -19,10 +19,8 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
 import org.nhindirect.config.repository.SettingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 
 public class SettingResource_addSettingTest extends SpringBaseTest
@@ -56,20 +54,23 @@ public class SettingResource_addSettingTest extends SpringBaseTest
 					settingsToAdd.forEach(addSetting->
 					{
 						ResponseEntity<Void> resp = null;
-						
+
 						if (!useEntityRequestObject())
 						{
-							resp = testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.PUT, null, Void.class,
-								addSetting.getName(), addSetting.getValue());
+							resp = webClient.put()
+								.uri(uriBuilder -> uriBuilder.path("/setting/{name}/{value}").build(addSetting.getName(), addSetting.getValue()))
+								.retrieve().toBodilessEntity().block();
 						}
 						else
 						{
-							HttpEntity<Setting> requestEntity = new HttpEntity<Setting>(addSetting);
-							resp = testRestTemplate.exchange("/setting", HttpMethod.PUT, requestEntity, Void.class);
+							resp = webClient.put()
+								.uri(uriBuilder -> uriBuilder.path("/setting").build())
+								.bodyValue(addSetting)
+								.retrieve().toBodilessEntity().block();
 						}
-						
-						if (resp.getStatusCodeValue() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
+
+						if (resp.getStatusCode().value() != 201)
+							throw new WebClientResponseException(resp.getStatusCode().value(), resp.getStatusCode().toString(), null, null, null);
 					});
 				}
 				
@@ -258,11 +259,11 @@ public class SettingResource_addSettingTest extends SpringBaseTest
 
 					
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(409, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(409, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -317,11 +318,11 @@ public class SettingResource_addSettingTest extends SpringBaseTest
 				}
 					
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -377,11 +378,11 @@ public class SettingResource_addSettingTest extends SpringBaseTest
 				}
 					
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

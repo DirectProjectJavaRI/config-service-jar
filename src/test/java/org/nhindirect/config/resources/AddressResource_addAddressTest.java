@@ -15,11 +15,11 @@ import org.nhindirect.config.model.Address;
 import org.nhindirect.config.repository.AddressRepository;
 import org.nhindirect.config.repository.DomainRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+
 
 public class AddressResource_addAddressTest extends SpringBaseTest
 {
@@ -59,15 +59,20 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			}
 			
 
-				HttpEntity<Address> requestEntity = new HttpEntity<Address>(addAddress);
-				ResponseEntity<Void> resp = testRestTemplate.exchange("/address", HttpMethod.PUT, requestEntity, Void.class);
-				if (resp.getStatusCodeValue() != 201)
+			ResponseEntity<Void> resp = webClient.put()
+				.uri(uriBuilder ->  uriBuilder.path("/address").build())
+				.bodyValue(addAddress)
+				.retrieve().toBodilessEntity().block();
+
+
+			if (resp.getStatusCode().value() != 201)
 					throw new HttpClientErrorException(resp.getStatusCode());
 
-			
 			try
 			{
-				final ResponseEntity<Address> getAddress = testRestTemplate.getForEntity("/address/" + addAddress.getEmailAddress(), Address.class);
+				final ResponseEntity<Address> getAddress  = webClient.get()
+					.uri(uriBuilder ->  uriBuilder.path("/address/{emailAddress}").build(addAddress.getEmailAddress()))
+					.retrieve().toEntity(Address.class).block();
 				doAssertions(getAddress.getBody());
 			}
 			catch (RestClientException e)
@@ -152,9 +157,9 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(400, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(400, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -189,9 +194,9 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(400, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(400, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -226,9 +231,9 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(404, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(404, ex.getStatusCode().value());
 			}
 		}.perform();
 	}			
@@ -286,9 +291,9 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(409, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(409, ex.getStatusCode().value());
 			}
 		}.perform();
 	}
@@ -348,9 +353,9 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		
@@ -410,9 +415,9 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		
@@ -472,9 +477,9 @@ public class AddressResource_addAddressTest extends SpringBaseTest
 			@Override
 			protected void assertException(Exception exception) throws Exception 
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}			

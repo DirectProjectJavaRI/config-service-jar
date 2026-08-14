@@ -20,10 +20,9 @@ import org.nhindirect.config.model.DNSRecord;
 import org.nhindirect.config.model.utils.DNSUtils;
 import org.nhindirect.config.repository.DNSRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class DNSResource_removeDNSRecordsByIdsTest extends SpringBaseTest
 {
@@ -44,21 +43,23 @@ public class DNSResource_removeDNSRecordsByIdsTest extends SpringBaseTest
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<DNSRecord> recordsToAdd = getRecordsToAdd();
 
 				if (recordsToAdd != null)
 				{
-					recordsToAdd.forEach(addRec->		
+					recordsToAdd.forEach(addRec->
 					{
-						final HttpEntity<DNSRecord> requestEntity = new HttpEntity<>(addRec);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/dns", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/dns").build())
+							.bodyValue(addRec)
+							.retrieve().toBodilessEntity().block();
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
-					});			
+					});
 				}
-				
+
 				final Collection<Long> ids = getIdsToRemove();
 				StringBuilder builder = new StringBuilder();
 				int cnt = 0;
@@ -67,16 +68,18 @@ public class DNSResource_removeDNSRecordsByIdsTest extends SpringBaseTest
 					builder.append(id);
 					if (cnt < ids.size() - 1)
 						builder.append(",");
-					
+
 					++cnt;
 				}
 
-				final ResponseEntity<?> resp = 
-						testRestTemplate.exchange("/dns/{ids}", HttpMethod.DELETE, null, Void.class, builder.toString());
-					
-				if (resp.getStatusCodeValue() != 200)
+				final ResponseEntity<Void> resp =
+						webClient.delete()
+							.uri(uriBuilder -> uriBuilder.path("/dns/{ids}").build(builder.toString()))
+							.retrieve().toBodilessEntity().block();
+
+				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
-				
+
 				doAssertions();
 			}
 				
@@ -191,11 +194,11 @@ public class DNSResource_removeDNSRecordsByIdsTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

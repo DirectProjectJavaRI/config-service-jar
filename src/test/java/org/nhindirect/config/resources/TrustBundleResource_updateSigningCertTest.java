@@ -20,12 +20,9 @@ import org.nhindirect.config.TestUtils;
 import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -59,30 +56,41 @@ public class TrustBundleResource_updateSigningCertTest extends SpringBaseTest
 				{
 					bundlesToAdd.forEach(addBundle->
 					{
-						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
+						ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder ->  uriBuilder.path("/trustbundle").build())
+							.bodyValue(addBundle)
+							.retrieve().toBodilessEntity().block();
+						if (resp.getStatusCode().value() != 201)
+							throw new WebClientResponseException(resp.getStatusCode(), "", null, null, null, null);
 					});
 				}
 				
-				final HttpHeaders headers = new HttpHeaders();
-				headers.setContentType(MediaType.APPLICATION_JSON);
-				final HttpEntity<byte[]> requestEntity = new HttpEntity<>(getNewSigningCertificate(), headers);
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/signingCert", HttpMethod.POST, requestEntity, Void.class, 
-						getBundleToUpdate());
-				if (resp.getStatusCodeValue() != 204)
-					throw new HttpClientErrorException(resp.getStatusCode());
 				
-				final ResponseEntity<TrustBundle> getBundle = testRestTemplate.getForEntity("/trustbundle/" + getBundleToUpdate(), TrustBundle.class);
+				ResponseEntity<Void> resp = (getNewSigningCertificate() != null) ? 
+						webClient.post()
+					.uri(uriBuilder ->  uriBuilder.path("/trustbundle/{bundle}/signingCert").build(getBundleToUpdate()))
+					.contentType(MediaType.APPLICATION_JSON)
+					.bodyValue(getNewSigningCertificate())
+					.retrieve().toBodilessEntity().block() :
+						webClient.post()
+					.uri(uriBuilder ->  uriBuilder.path("/trustbundle/{bundle}/signingCert").build(getBundleToUpdate()))
+					.contentType(MediaType.APPLICATION_JSON)
+					.retrieve().toBodilessEntity().block();
+						
+				if (resp.getStatusCode().value() != 204)
+					throw new WebClientResponseException(resp.getStatusCode(), "", null, null, null, null);
 				
-				int statusCode = getBundle.getStatusCodeValue();
+				final ResponseEntity<TrustBundle> getBundle = webClient.get()
+					.uri(uriBuilder ->  uriBuilder.path("/trustbundle/{bundle}").build(getBundleToUpdate()))
+					.retrieve().toEntity(TrustBundle.class).block();
+
+				int statusCode = getBundle.getStatusCode().value();
 				if (statusCode == 404)
 					doAssertions(null);
 				else if (statusCode == 200)
 					doAssertions(getBundle.getBody());
 				else
-					throw new HttpClientErrorException(getBundle.getStatusCode());	
+					throw new WebClientResponseException(getBundle.getStatusCode(), "", null, null, null, null);
 
 				
 			}
@@ -226,7 +234,7 @@ public class TrustBundleResource_updateSigningCertTest extends SpringBaseTest
 				@Override
 				protected byte[] getNewSigningCertificate() throws Exception
 				{
-					return null;
+					return TestUtils.loadSigner("bundleSigner.der").getEncoded();
 				}
 				
 				@Override
@@ -236,11 +244,11 @@ public class TrustBundleResource_updateSigningCertTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -288,11 +296,11 @@ public class TrustBundleResource_updateSigningCertTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(400, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(400, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			
@@ -338,7 +346,7 @@ public class TrustBundleResource_updateSigningCertTest extends SpringBaseTest
 				@Override
 				protected byte[] getNewSigningCertificate() throws Exception
 				{
-					return null;
+					return TestUtils.loadSigner("bundleSigner.der").getEncoded();
 				}
 				
 				@Override
@@ -348,11 +356,11 @@ public class TrustBundleResource_updateSigningCertTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -402,7 +410,7 @@ public class TrustBundleResource_updateSigningCertTest extends SpringBaseTest
 				@Override
 				protected byte[] getNewSigningCertificate() throws Exception
 				{
-					return null;
+					return TestUtils.loadSigner("bundleSigner.der").getEncoded();
 				}
 				
 				@Override
@@ -412,11 +420,11 @@ public class TrustBundleResource_updateSigningCertTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

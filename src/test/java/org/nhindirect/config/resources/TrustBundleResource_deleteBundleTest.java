@@ -19,10 +19,9 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -45,30 +44,33 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<TrustBundle> bundlesToAdd = getBundlesToAdd();
-				
+
 				if (bundlesToAdd != null)
 				{
 					bundlesToAdd.forEach(addBundle->
 					{
-						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/trustbundle").build())
+							.bodyValue(addBundle)
+							.retrieve().toBodilessEntity().block();
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
 					});
 				}
-				
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}", 
-						HttpMethod.DELETE, null, Void.class,  getBundleNameToDelete());
-				
-				if (resp.getStatusCodeValue() != 200)
+
+				final ResponseEntity<Void> resp = webClient.delete()
+					.uri(uriBuilder -> uriBuilder.path("/trustbundle/{bundle}").build(getBundleNameToDelete()))
+					.retrieve().toBodilessEntity().block();
+
+				if (resp.getStatusCode().value() != 200)
 					throw new HttpClientErrorException(resp.getStatusCode());
 
 				doAssertions();
 
-				
+
 			}
 				
 			protected void doAssertions() throws Exception
@@ -135,11 +137,11 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -189,15 +191,15 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
-		}		
-		
+		}
+
 		@Test
 		public void testDeleteBundle_errorDelete_assertServiceError() throws Exception
 		{
@@ -211,12 +213,12 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 						super.setupMocks();
 
 						TrustBundleRepository mockDAO = mock(TrustBundleRepository.class);
-						
+
 						org.nhindirect.config.store.TrustBundle bundle = new org.nhindirect.config.store.TrustBundle();
 						bundle.setBundleName("Test");
 						when(mockDAO.findByBundleNameIgnoreCase((String)any())).thenReturn(Mono.just(bundle));
 						doThrow(new RuntimeException()).when(mockDAO).deleteById((Long)any());
-						
+
 						bundleService.setTrustBundleRepository(mockDAO);
 					}
 					catch (Throwable t)
@@ -224,34 +226,34 @@ public class TrustBundleResource_deleteBundleTest extends SpringBaseTest
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					bundleService.setTrustBundleRepository(bundleRepo);
 				}
-				
+
 				@Override
 				protected Collection<TrustBundle> getBundlesToAdd()
 				{
 					return null;
-	
+
 				}
-				
+
 				@Override
 				protected String getBundleNameToDelete()
 				{
 					return "testBundle1";
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

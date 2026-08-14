@@ -9,16 +9,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
-
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
 import org.nhindirect.config.repository.SettingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -66,37 +63,43 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 					ResponseEntity<Void> resp = null;
 					if (!useEntityRequestObject())
 					{
-						resp = testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.PUT, null, Void.class,
-								addSetting.getName(), addSetting.getValue());
+						resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/setting/{name}/{value}").build(addSetting.getName(), addSetting.getValue()))
+							.retrieve().toBodilessEntity().block();
 					}
 					else
 					{
-						HttpEntity<Setting> requestEntity = new HttpEntity<Setting>(addSetting);
-						resp = testRestTemplate.exchange("/setting", HttpMethod.PUT, requestEntity, Void.class);
+						resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/setting").build())
+							.bodyValue(addSetting)
+							.retrieve().toBodilessEntity().block();
 					}
-					
-					if (resp.getStatusCodeValue() != 201)
-						throw new HttpClientErrorException(resp.getStatusCode());
+
+					if (resp.getStatusCode().value() != 201)
+						throw new WebClientResponseException(resp.getStatusCode().value(), resp.getStatusCode().toString(), null, null, null);
 
 				}
-				
-				final ResponseEntity<?> resp = 
-						testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.POST, null, Void.class, 
-								getSettingNameToUpdate(), getSettingValueToUpdate());
-					
-				if (resp.getStatusCodeValue() != 204)
-					throw new HttpClientErrorException(resp.getStatusCode());	
 
-				
-				final ResponseEntity<Setting> getSetting = testRestTemplate.getForEntity("/setting/" + getSettingNameToUpdate(), Setting.class);
-				
-				int statusCode = getSetting.getStatusCodeValue();
+				final ResponseEntity<Void> resp =
+						webClient.post()
+						.uri(uriBuilder -> uriBuilder.path("/setting/{name}/{value}").build(getSettingNameToUpdate(), getSettingValueToUpdate()))
+						.retrieve().toBodilessEntity().block();
+
+				if (resp.getStatusCode().value() != 204)
+					throw new WebClientResponseException(resp.getStatusCode().value(), resp.getStatusCode().toString(), null, null, null);
+
+
+				final ResponseEntity<Setting> getSetting = webClient.get()
+					.uri(uriBuilder -> uriBuilder.path("/setting/{name}").build(getSettingNameToUpdate()))
+					.retrieve().toEntity(Setting.class).block();
+
+				int statusCode = getSetting.getStatusCode().value();
 				if (statusCode == 404)
 					doAssertions(null);
 				else if (statusCode == 200)
 					doAssertions(getSetting.getBody());
 				else
-					throw new HttpClientErrorException(getSetting.getStatusCode());		
+					throw new WebClientResponseException(statusCode, getSetting.getStatusCode().toString(), null, null, null);
 			}
 				
 			protected void doAssertions(Setting setting) throws Exception
@@ -180,11 +183,11 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -237,11 +240,11 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}
@@ -299,9 +302,9 @@ public class SettingResource_updateSettingTest extends SpringBaseTest
 				@Override
 				protected void assertException(Exception exception) throws Exception 
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

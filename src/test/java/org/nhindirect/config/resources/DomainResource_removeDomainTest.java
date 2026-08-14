@@ -20,10 +20,8 @@ import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.DomainRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -54,17 +52,22 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 			
 			if (addDomain != null)
 			{
-				final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-				if (resp.getStatusCodeValue() != 201)
-					throw new HttpClientErrorException(resp.getStatusCode());
+				final ResponseEntity<Void> resp = webClient.put()
+					.uri(uriBuilder -> uriBuilder.path("/domain").build())
+					.bodyValue(addDomain)
+					.retrieve().toBodilessEntity().block();
+
+				if (resp.getStatusCode().value() != 201)
+					throw new WebClientResponseException(resp.getStatusCode().value(), resp.getStatusCode().toString(), null, null, null);
 			}
 
-			final ResponseEntity<?> resp = 
-					testRestTemplate.exchange("/domain/{name}", HttpMethod.DELETE, null, Void.class, getDomainNameToRemove());
-				
-			if (resp.getStatusCodeValue() != 200)
-				throw new HttpClientErrorException(resp.getStatusCode());				
+			final ResponseEntity<Void> resp =
+					webClient.delete()
+					.uri(uriBuilder -> uriBuilder.path("/domain/{name}").build(getDomainNameToRemove()))
+					.retrieve().toBodilessEntity().block();
+
+			if (resp.getStatusCode().value() != 200)
+				throw new WebClientResponseException(resp.getStatusCode().value(), resp.getStatusCode().toString(), null, null, null);
 
 			doAssertions();
 		}
@@ -148,11 +151,11 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(404, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(404, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -202,11 +205,11 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}
@@ -261,11 +264,11 @@ public class DomainResource_removeDomainTest extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		

@@ -18,9 +18,7 @@ import org.nhindirect.config.model.Setting;
 import org.nhindirect.config.repository.SettingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class SettingResource_getAllSettingsTest extends SpringBaseTest
@@ -40,26 +38,27 @@ public class SettingResource_getAllSettingsTest extends SpringBaseTest
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<Setting> settingsToAdd = getSettingsToAdd();
-				
+
 				if (settingsToAdd != null)
 				{
 					settingsToAdd.forEach(addSetting->
 					{
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.PUT, null, Void.class,
-								addSetting.getName(), addSetting.getValue());
-						if (resp.getStatusCodeValue() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/setting/{name}/{value}").build(addSetting.getName(), addSetting.getValue()))
+							.retrieve().toBodilessEntity().block();
+						if (resp.getStatusCode().value() != 201)
+							throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 					});
 				}
 
 				final Collection<Setting> getSettings = webClient.get()
 						.uri("setting")
 						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Setting>>() {}).block();
-					
-				doAssertions(getSettings);									
+
+				doAssertions(getSettings);
 
 			}
 				
@@ -185,7 +184,7 @@ public class SettingResource_getAllSettingsTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

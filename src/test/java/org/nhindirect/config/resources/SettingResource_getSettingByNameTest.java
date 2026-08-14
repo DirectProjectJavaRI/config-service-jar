@@ -18,9 +18,7 @@ import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Setting;
 import org.nhindirect.config.repository.SettingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 
@@ -43,27 +41,28 @@ public class SettingResource_getSettingByNameTest extends SpringBaseTest
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<Setting> settingsToAdd = getSettingsToAdd();
-				
+
 				if (settingsToAdd != null)
 				{
 					settingsToAdd.forEach(addSetting->
 					{
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/setting/{name}/{value}", HttpMethod.PUT, null, Void.class,
-								addSetting.getName(), addSetting.getValue());
-						if (resp.getStatusCodeValue() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/setting/{name}/{value}").build(addSetting.getName(), addSetting.getValue()))
+							.retrieve().toBodilessEntity().block();
+						if (resp.getStatusCode().value() != 201)
+							throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 					});
 				}
 
 				final Setting getSetting = webClient.get()
 						.uri(uriBuilder ->  uriBuilder.path("setting/{set}").build(getSettingToRetrieve()))
 						.retrieve().bodyToMono(Setting.class).block();
-						
-				doAssertions(getSetting);		
-				
+
+				doAssertions(getSetting);
+
 			}
 				
 			protected void doAssertions(Setting setting) throws Exception
@@ -155,7 +154,7 @@ public class SettingResource_getSettingByNameTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -211,7 +210,7 @@ public class SettingResource_getSettingByNameTest extends SpringBaseTest
 				{
 					assertTrue(exception instanceof WebClientResponseException);
 					WebClientResponseException ex = (WebClientResponseException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}			

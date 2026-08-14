@@ -17,10 +17,8 @@ import org.nhindirect.config.model.BundleRefreshError;
 import org.nhindirect.config.model.TrustBundle;
 import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class TrustBundleResource_refreshBundleTest extends SpringBaseTest
 {
@@ -42,36 +40,41 @@ public class TrustBundleResource_refreshBundleTest extends SpringBaseTest
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<TrustBundle> bundlesToAdd = getBundlesToAdd();
-				
+
 				if (bundlesToAdd != null)
 				{
 					bundlesToAdd.forEach(addBundle->
 					{
-						final HttpEntity<TrustBundle> requestEntity = new HttpEntity<>(addBundle);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/trustbundle").build())
+							.bodyValue(addBundle)
+							.retrieve().toBodilessEntity().block();
+						if (resp.getStatusCode().value() != 201)
+							throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 					});
 				}
-				
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/trustbundle/{bundle}/refreshBundle/", HttpMethod.POST, null, Void.class,
-						getBundleNameToRefresh());
-				if (resp.getStatusCodeValue() != 204)
-					throw new HttpClientErrorException(resp.getStatusCode());
-				
-				final ResponseEntity<TrustBundle> getBundle = testRestTemplate.getForEntity("/trustbundle/" + getBundleNameToRefresh(), TrustBundle.class);
 
-				int statusCode = getBundle.getStatusCodeValue();
+				final ResponseEntity<Void> resp = webClient.post()
+					.uri(uriBuilder -> uriBuilder.path("/trustbundle/{bundle}/refreshBundle").build(getBundleNameToRefresh()))
+					.retrieve().toBodilessEntity().block();
+				if (resp.getStatusCode().value() != 204)
+					throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
+
+				final ResponseEntity<TrustBundle> getBundle = webClient.get()
+					.uri(uriBuilder -> uriBuilder.path("/trustbundle/{bundle}").build(getBundleNameToRefresh()))
+					.retrieve().toEntity(TrustBundle.class).block();
+
+				int statusCode = getBundle.getStatusCode().value();
 				if (statusCode == 404)
 					doAssertions(null);
 				else if (statusCode == 200)
 					doAssertions(getBundle.getBody());
 				else
-					throw new HttpClientErrorException(getBundle.getStatusCode());	
-				
+					throw new WebClientResponseException(getBundle.getStatusCode(), "", getBundle.getHeaders(), null, null, null);
+
 			}
 				
 			protected void doAssertions(TrustBundle bundle) throws Exception
@@ -161,11 +164,11 @@ public class TrustBundleResource_refreshBundleTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -214,11 +217,11 @@ public class TrustBundleResource_refreshBundleTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		

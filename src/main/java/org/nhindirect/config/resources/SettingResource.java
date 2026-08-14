@@ -84,6 +84,8 @@ public class SettingResource extends ProtectedResource
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public Flux<Setting> getAllSettings()
     {
+    	log.info("Getting all settings");
+
 		return settingRepo.findAll()
 		    .map(setting -> EntityModelConversion.toModelSetting(setting))
    	     	.onErrorResume(e -> { 
@@ -99,13 +101,18 @@ public class SettingResource extends ProtectedResource
      */
     @GetMapping(value="{name}", produces = MediaType.APPLICATION_JSON_VALUE)
     public Mono<Setting> getSettingByName(@PathVariable("name") String name)
-    {    	
+    {
+    	log.info("Getting setting with name {}", name);
+
     	return settingRepo.findByNameIgnoreCase(name.toUpperCase())
     		.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Setting()))
-    		.flatMap(setting -> 
+    		.flatMap(setting ->
     		{
     			if (setting.getName() == null)
+    			{
+    				log.info("Setting {} does not exist", name);
     				return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    			}
     			
     			return Mono.just(EntityModelConversion.toModelSetting(setting))
 		   	     	.onErrorResume(e -> { 
@@ -124,10 +131,12 @@ public class SettingResource extends ProtectedResource
      * @return Status of 201 if the setting was created or a status of 409 if a setting with the same name
      * already exists.
      */
-    @PutMapping("{name}/{value}")  
+    @PutMapping("{name}/{value}")
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<Void> addSetting(@PathVariable("name") String name, @PathVariable("value") String value)
-    {    	
+    {
+    	log.info("Adding setting with name {}", name);
+
     	if (name == null || name.isEmpty())
     	{
     		log.error("Name cannot be null or empty");
@@ -145,7 +154,10 @@ public class SettingResource extends ProtectedResource
        	   .flatMap(setting -> 
        	   {
        		   if (setting.getName() != null)
-       			 return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+       		   {
+       			   log.error("Setting {} already exists", name);
+       			   return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+       		   }
        		   
 	       	   final org.nhindirect.config.store.Setting addSetting = new org.nhindirect.config.store.Setting();
 	       	   addSetting.setName(name);
@@ -184,17 +196,21 @@ public class SettingResource extends ProtectedResource
      * @return Status of 204 if the value of the setting was updated or a status of 404 if a setting with the given name
      * does not exist.
      */
-    @PostMapping("{name}/{value}")  
+    @PostMapping("{name}/{value}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> updateSetting(@PathVariable("name") String name, @PathVariable("value") String value)
-    {    	
-    	
+    {
+    	log.info("Updating setting with name {}", name);
+
        	return settingRepo.findByNameIgnoreCase(name)
     	   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Setting()))
-    	   .flatMap(setting -> 
+    	   .flatMap(setting ->
     	   {
        		   if (setting.getName() == null)
-       			 return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+       		   {
+       			   log.error("Setting {} does not exist", name);
+       			   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+       		   }
        		   
        		   setting.setValue(value);
 	       	   
@@ -229,12 +245,17 @@ public class SettingResource extends ProtectedResource
     @DeleteMapping("{name}")
     public Mono<Void> removeSettingByName(@PathVariable("name") String name)
     {
+    	log.info("Removing setting with name {}", name);
+
        	return settingRepo.findByNameIgnoreCase(name)
     	   .switchIfEmpty(Mono.just(new org.nhindirect.config.store.Setting()))
-    	   .flatMap(setting -> 
+    	   .flatMap(setting ->
     	   {
        		   if (setting.getName() == null)
-       			 return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+       		   {
+       			   log.error("Setting {} does not exist", name);
+       			   return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+       		   }
        		   
        		   return settingRepo.deleteByNameIgnoreCase(name)
 	   	       .onErrorResume(e -> { 

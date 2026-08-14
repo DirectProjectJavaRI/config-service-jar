@@ -21,16 +21,13 @@ import org.nhindirect.config.repository.TrustBundleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @SpringBootTest(classes = TestApplication.class, webEnvironment = WebEnvironment.DEFINED_PORT)
-@TestPropertySource("classpath:bootstrap.properties")
+@TestPropertySource("classpath:application.properties")
 public abstract class SpringBaseTest
 {
-	@Autowired
-	protected TestRestTemplate testRestTemplate;
 	
 	@Autowired
 	protected WebClient webClient;

@@ -21,9 +21,12 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 package org.nhindirect.config.resources;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.nhindirect.config.model.Domain;
@@ -138,13 +141,18 @@ public class DomainResource extends ProtectedResource
      */
     @GetMapping(value="{domain}", produces = MediaType.APPLICATION_JSON_VALUE)
     public Mono<Domain> getDomain(@PathVariable("domain") String domain)
-    {   	
+    {
+    	log.info("Getting domain {}", domain);
+
 		return domainRepo.findByDomainNameIgnoreCase(domain)
 		.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
-		.flatMap(foundDomain -> 
+		.flatMap(foundDomain ->
 		{
 			if (foundDomain.getDomainName() == null)
+			{
+				log.info("Domain {} does not exist", domain);
 				return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+			}
 			
 			return addRepo.findByDomainId(foundDomain.getId())
 			.collectList()
@@ -169,7 +177,8 @@ public class DomainResource extends ProtectedResource
     public Flux<Domain> searchDomains(@RequestParam(name="domainName", defaultValue="") String domainName,
     		@RequestParam(name="entityStatus", defaultValue="")String entityStatus)
     {
-    	
+    	log.info("Searching domains with domainName={} entityStatus={}", domainName, entityStatus);
+
     	org.nhindirect.config.store.EntityStatus status = null;
     	// get the entity status requested
     	if (!entityStatus.isEmpty())
@@ -191,22 +200,41 @@ public class DomainResource extends ProtectedResource
 		if (status == null && domainName.isEmpty())
 			domains = domainRepo.findAll();
 		else if (status == null)
-			domains = domainRepo.findByDomainNameContainingIgnoreCase("%" + domainName.toUpperCase() + "%");
+			domains = domainRepo.findByDomainNameContainingIgnoreCase(domainName);
 		else if (domainName.isEmpty())
 			domains = domainRepo.findByStatus(status.ordinal());
 		else
-			domains = domainRepo.findByDomainNameContainingIgnoreCaseAndStatus("%" + domainName.toUpperCase() + "%", status.ordinal());
+			domains = domainRepo.findByDomainNameContainingIgnoreCaseAndStatus(domainName, status.ordinal());
 
 
-		return domains.flatMap(domain -> 
+		final int BATCH_SIZE = 250;
+
+		return domains.collectList()
+		.flatMapMany(domainList ->
 		{
-			return addRepo.findByDomainId(domain.getId())
-			.collectList()
-			.switchIfEmpty(Mono.just(Collections.emptyList()))
-			.map(addrs -> EntityModelConversion.toModelDomain(domain, addrs));
-			
+			if (domainList.isEmpty())
+				return Flux.empty();
+
+			// partition domain IDs into batches to avoid oversized IN clauses
+			final List<Long> allIds = domainList.stream()
+				.map(org.nhindirect.config.store.Domain::getId)
+				.collect(Collectors.toList());
+
+			final List<List<Long>> batches = new ArrayList<>();
+			for (int i = 0; i < allIds.size(); i += BATCH_SIZE)
+				batches.add(allIds.subList(i, Math.min(i + BATCH_SIZE, allIds.size())));
+
+			// fetch all addresses across all batches, then group by domainId
+			return Flux.fromIterable(batches)
+			.flatMap(batch -> addRepo.findByDomainIdIn(batch))
+			.collectMultimap(org.nhindirect.config.store.Address::getDomainId)
+			.flatMapMany(addrMap ->
+				Flux.fromIterable(domainList)
+				.map(domain -> EntityModelConversion.toModelDomain(domain,
+					new ArrayList<>(addrMap.getOrDefault(domain.getId(), Collections.emptyList()))))
+			);
 		})
-     	.onErrorResume(e -> { 
+     	.onErrorResume(e -> {
     		log.error("Error looking up domains.", e);
     		return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
     	});
@@ -221,14 +249,19 @@ public class DomainResource extends ProtectedResource
      */
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<Void> addDomain(@RequestBody Domain domain) 
+    public Mono<Void> addDomain(@RequestBody Domain domain)
     {
+    	log.info("Adding domain {}", domain.getDomainName());
+
     	return domainRepo.findByDomainNameIgnoreCase(domain.getDomainName())
     		.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
-    		.flatMap(foundDomain -> 
+    		.flatMap(foundDomain ->
     		{
     			if (foundDomain.getDomainName() != null)
+    			{
+    				log.error("Domain {} already exists", domain.getDomainName());
     				return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+    			}
     			
     			final Map.Entry<org.nhindirect.config.store.Domain, Collection<org.nhindirect.config.store.Address>> toEntry = EntityModelConversion.toEntityDomain(domain);
     			org.nhindirect.config.store.Domain savedDomain = toEntry.getKey();
@@ -277,16 +310,21 @@ public class DomainResource extends ProtectedResource
      * @param domain The name of the domain to update.  
      * @return Status of 204 if the domain is updated or 404 if a domain with the given name does not exist.
      */
-    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)     
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public Mono<Void> updateDomain(@RequestBody Domain domain) 
+    public Mono<Void> updateDomain(@RequestBody Domain domain)
     {
+    	log.info("Updating domain {}", domain.getDomainName());
+
     	return domainRepo.findByDomainNameIgnoreCase(domain.getDomainName())
     		.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
-    		.flatMap(existingDomain -> 
+    		.flatMap(existingDomain ->
     		{
     			if (existingDomain.getDomainName() == null)
+    			{
+    				log.error("Domain {} does not exist", domain.getDomainName());
     				return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    			}
     			
     	    	final org.nhindirect.config.store.Domain toDomain = EntityModelConversion.toEntityDomain(domain).getKey();
     	    	toDomain.setId(existingDomain.getId());
@@ -326,14 +364,19 @@ public class DomainResource extends ProtectedResource
      * @return Status of 200 if the domain was deleted of status of 404 if a domain with the given name does not exists.
      */
     @DeleteMapping("{domain}")
-    public Mono<Void> removedDomain(@PathVariable("domain") String domain)   
+    public Mono<Void> removedDomain(@PathVariable("domain") String domain)
     {
+    	log.info("Removing domain {}", domain);
+
     	return domainRepo.findByDomainNameIgnoreCase(domain)
     		.switchIfEmpty(Mono.just(new org.nhindirect.config.store.Domain()))
-    		.flatMap(existingDomain -> 
+    		.flatMap(existingDomain ->
     		{
     			if (existingDomain.getDomainName() == null)
+    			{
+    				log.error("Domain {} does not exist", domain);
     				return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+    			}
     			
     			return bundleResource.disassociateTrustBundlesFromDomain(domain)
     			   .then(domainReltnRepo.deleteByDomainId(existingDomain.getId()))

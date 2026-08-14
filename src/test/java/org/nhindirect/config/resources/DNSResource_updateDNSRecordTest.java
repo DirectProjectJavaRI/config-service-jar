@@ -22,10 +22,8 @@ import org.nhindirect.config.repository.DNSRepository;
 import org.nhindirect.config.resources.util.EntityModelConversion;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -56,26 +54,29 @@ public class DNSResource_updateDNSRecordTest extends SpringBaseTest
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final DNSRecord addRecord = getDNSRecordToAdd();
-				
+
 				if (addRecord != null)
 				{
-					final HttpEntity<DNSRecord> requestEntity = new HttpEntity<>(addRecord);
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/dns", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
-						throw new HttpClientErrorException(resp.getStatusCode());
+					final ResponseEntity<Void> resp = webClient.put()
+						.uri(uriBuilder -> uriBuilder.path("/dns").build())
+						.bodyValue(addRecord)
+						.retrieve().toBodilessEntity().block();
+					if (resp.getStatusCode().value() != 201)
+						throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 				}
-				
+
 				final DNSRecord recordToUpdate = getRecordToUpdate();
 
-				final HttpEntity<DNSRecord> requestEntity = new HttpEntity<>(recordToUpdate);
-				final ResponseEntity<Void> records = 
-						testRestTemplate.exchange("/dns", HttpMethod.POST, requestEntity, Void.class);
-				
-				if (records.getStatusCodeValue() != 204)
-					throw new HttpClientErrorException(records.getStatusCode());
+				final ResponseEntity<Void> records = webClient.post()
+					.uri(uriBuilder -> uriBuilder.path("/dns").build())
+					.bodyValue(recordToUpdate)
+					.retrieve().toBodilessEntity().block();
+
+				if (records.getStatusCode().value() != 204)
+					throw new WebClientResponseException(records.getStatusCode(), "", records.getHeaders(), null, null, null);
 
 				final Collection<DNSRecord> getRecords = webClient.get()
 						.uri(uriBuilder ->  uriBuilder.path("/dns")
@@ -84,7 +85,7 @@ public class DNSResource_updateDNSRecordTest extends SpringBaseTest
 						.build())
 						.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<DNSRecord>>() {}).block();
 
-				doAssertions(getRecords);					
+				doAssertions(getRecords);
 			}
 			
 			
@@ -172,24 +173,24 @@ public class DNSResource_updateDNSRecordTest extends SpringBaseTest
 			new TestPlan()
 			{
 				protected DNSRecord updatedRecord;
-				
+
 				@Override
 				protected DNSRecord getRecordToUpdate()
-				{				
-					updatedRecord = DNSUtils.createARecord("myserver.com", 3600, "10.232.12.43");		
+				{
+					updatedRecord = DNSUtils.createARecord("myserver.com", 3600, "10.232.12.43");
 					updatedRecord.setId(1233);
 					return updatedRecord;
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
-		}		
+		}
 		
 		@Test
 		public void testUpdateDNSRecord_errorInLookup_assertServerError() throws Exception
@@ -240,11 +241,11 @@ public class DNSResource_updateDNSRecordTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -300,11 +301,11 @@ public class DNSResource_updateDNSRecordTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	

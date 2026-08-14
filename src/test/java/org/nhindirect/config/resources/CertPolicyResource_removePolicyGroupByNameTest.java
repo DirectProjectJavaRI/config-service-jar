@@ -13,27 +13,24 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
-
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicyGroup;
 import org.nhindirect.config.repository.CertPolicyGroupRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
 public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTest
 {
 	@Autowired
-	protected CertPolicyResource certService;	
-		
-		abstract class TestPlan extends BaseTestPlan 
+	protected CertPolicyResource certService;
+
+		abstract class TestPlan extends BaseTestPlan
 		{
-			
+
 			@Override
 			protected void tearDownMocks()
 			{
@@ -41,61 +38,63 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 			}
 
 			protected abstract Collection<CertPolicyGroup> getGroupsToAdd();
-			
+
 			protected abstract String getPolicyGroupToDelete();
-			
+
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<CertPolicyGroup> groupsToAdd = getGroupsToAdd();
-				
+
 				if (groupsToAdd != null)
 				{
 					groupsToAdd.forEach(addGroup->
 					{
-						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
-							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups").build())
+							.bodyValue(addGroup)
+							.retrieve().toBodilessEntity().block();
+						if (resp.getStatusCode().value() != 201)
+							throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
+					});
 				}
-				
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/{group}", 
-						HttpMethod.DELETE, null, Void.class,
-						getPolicyGroupToDelete());
 
-				if (resp.getStatusCodeValue() != 200)
-					throw new HttpClientErrorException(resp.getStatusCode());
-				
+				final ResponseEntity<Void> resp = webClient.delete()
+					.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups/{group}").build(getPolicyGroupToDelete()))
+					.retrieve().toBodilessEntity().block();
+
+				if (resp.getStatusCode().value() != 200)
+					throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
+
 				doAssertions();
-				
+
 			}
-				
+
 			protected void doAssertions() throws Exception
 			{
-				
+
 			}
-		}	
-		
+		}
+
 		@Test
 		public void testRemovePolicyGroupByName_assertGroupRemoved()  throws Exception
 		{
 			new TestPlan()
 			{
 				protected Collection<CertPolicyGroup> groups;
-				
+
 				@Override
 				protected Collection<CertPolicyGroup> getGroupsToAdd()
 				{
 					try
 					{
 						groups = new ArrayList<CertPolicyGroup>();
-						
+
 						CertPolicyGroup group = new CertPolicyGroup();
 						group.setPolicyGroupName("Group1");
 						groups.add(group);
-						
+
 						return groups;
 					}
 					catch (Exception e)
@@ -109,7 +108,7 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 				{
 					return "Group1";
 				}
-				
+
 				@Override
 				protected void doAssertions() throws Exception
 				{
@@ -117,26 +116,26 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 				}
 			}.perform();
 		}
-		
-		
+
+
 		@Test
 		public void testRemovePolicyGroupByName_nonExistantGroup_assertNotFound()  throws Exception
 		{
 			new TestPlan()
 			{
 				protected Collection<CertPolicyGroup> groups;
-				
+
 				@Override
 				protected Collection<CertPolicyGroup> getGroupsToAdd()
 				{
 					try
 					{
 						groups = new ArrayList<CertPolicyGroup>();
-						
+
 						CertPolicyGroup group = new CertPolicyGroup();
 						group.setPolicyGroupName("Group1");
 						groups.add(group);
-						
+
 						return groups;
 					}
 					catch (Exception e)
@@ -150,17 +149,17 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 				{
 					return "Group2";
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
-		}	
-		
+		}
+
 		@Test
 		public void testRemovePolicyGroupByName_errorInLookup_assertServiceError()  throws Exception
 		{
@@ -174,7 +173,7 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 						super.setupMocks();
 						CertPolicyGroupRepository mockDAO = mock(CertPolicyGroupRepository.class);
 						doThrow(new RuntimeException()).when(mockDAO).findByPolicyGroupNameIgnoreCase((String)any());
-						
+
 						certService.setCertPolicyGroupRepository(mockDAO);
 					}
 					catch (Throwable t)
@@ -182,37 +181,37 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					certService.setCertPolicyGroupRepository(policyGroupRepo);
-				}	
-				
+				}
+
 				@Override
 				protected Collection<CertPolicyGroup> getGroupsToAdd()
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected String getPolicyGroupToDelete()
 				{
 					return "Group1";
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
-		}	
-		
+		}
+
 		@Test
 		public void testRemovePolicyGroupByName_errorInDelete_assertServiceError()  throws Exception
 		{
@@ -226,12 +225,12 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 						super.setupMocks();
 
 						CertPolicyGroupRepository mockDAO = mock(CertPolicyGroupRepository.class);
-						
+
 						final org.nhindirect.config.store.CertPolicyGroup group = new org.nhindirect.config.store.CertPolicyGroup();
 						group.setPolicyGroupName("Test");
 						when(mockDAO.findByPolicyGroupNameIgnoreCase((String)any())).thenReturn(Mono.just(group));
 						doThrow(new RuntimeException()).when(mockDAO).deleteById((Long)any());
-						
+
 						certService.setCertPolicyGroupRepository(mockDAO);
 					}
 					catch (Throwable t)
@@ -239,34 +238,34 @@ public class CertPolicyResource_removePolicyGroupByNameTest extends SpringBaseTe
 						throw new RuntimeException(t);
 					}
 				}
-				
+
 				@Override
 				protected void tearDownMocks()
 				{
 					super.tearDownMocks();
-					
+
 					certService.setCertPolicyGroupRepository(policyGroupRepo);
-				}	
-				
+				}
+
 				@Override
 				protected Collection<CertPolicyGroup> getGroupsToAdd()
 				{
 					return null;
 				}
-				
+
 				@Override
 				protected String getPolicyGroupToDelete()
 				{
 					return "Group1";
 				}
-				
+
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
-		}		
+		}
 }

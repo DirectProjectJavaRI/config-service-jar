@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
-
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
@@ -21,10 +20,7 @@ import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.DomainRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 public class DomainResource_searchDomainTest extends SpringBaseTest
@@ -49,32 +45,34 @@ public class DomainResource_searchDomainTest extends SpringBaseTest
 		
 		@Override
 		protected void performInner() throws Exception
-		{				
-			
+		{
+
 			final Collection<Domain> addDomains = getDomainsToAdd();
-			
+
 			if (addDomains != null)
 			{
 				addDomains.forEach(addDomain->
 				{
-					final HttpEntity<Domain> requestEntity = new HttpEntity<>(addDomain);
-					final ResponseEntity<Void> resp = testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-					if (resp.getStatusCodeValue() != 201)
-						throw new HttpClientErrorException(resp.getStatusCode());
+					final ResponseEntity<Void> resp = webClient.put()
+						.uri(uriBuilder -> uriBuilder.path("/domain").build())
+						.bodyValue(addDomain)
+						.retrieve().toBodilessEntity().block();
+					if (resp.getStatusCode().value() != 201)
+						throw new WebClientResponseException(resp.getStatusCode(), "", resp.getHeaders(), null, null, null);
 				});
-				
+
 			}
 
 			final String entityStatus = (getEntityStatusToSearch() != null) ? getEntityStatusToSearch() : "";
-			
+
 			final Collection<Domain> getDomains = webClient.get()
 			.uri(uriBuilder ->  uriBuilder.path("/domain")
 					.queryParam("domainName", getDomainNameToSearch())
 					.queryParam("entityStatus", entityStatus)
 					.build())
 			.retrieve().bodyToMono(new ParameterizedTypeReference<Collection<Domain>>() {}).block();
-			
-			doAssertions(getDomains);				
+
+			doAssertions(getDomains);
 		}
 		
 		
@@ -518,7 +516,7 @@ public class DomainResource_searchDomainTest extends SpringBaseTest
 			{
 				assertTrue(exception instanceof WebClientResponseException);
 				WebClientResponseException ex = (WebClientResponseException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		

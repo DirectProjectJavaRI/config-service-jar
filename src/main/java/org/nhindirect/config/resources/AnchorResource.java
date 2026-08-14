@@ -93,11 +93,13 @@ public class AnchorResource extends ProtectedResource
      * anchors exist for the owner.
      */      
     @GetMapping(value="/{owner}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Flux<Anchor> getAnchorForOwner(@RequestParam(name="incoming", defaultValue="false") boolean incoming, 
-    		@RequestParam(name="outgoing", defaultValue="false") boolean outgoing, 
-    		@RequestParam(name="thumbprint", defaultValue="") String thumbprint, 
+    public Flux<Anchor> getAnchorForOwner(@RequestParam(name="incoming", defaultValue="false") boolean incoming,
+    		@RequestParam(name="outgoing", defaultValue="false") boolean outgoing,
+    		@RequestParam(name="thumbprint", defaultValue="") String thumbprint,
     		@PathVariable("owner") String owner)
     {
+    	log.info("Getting anchors for owner {}", owner);
+
 		return anchorRepo.findByOwnerIgnoreCase(owner)
 				.filter(anchor -> !((incoming && !anchor.isIncoming()) || (outgoing && !anchor.isOutgoing()) ||
 	    				(!thumbprint.isEmpty() && !thumbprint.equalsIgnoreCase(anchor.getThumbprint()))))
@@ -115,6 +117,8 @@ public class AnchorResource extends ProtectedResource
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public Flux<Anchor> getAnchors()
     {
+    	log.info("Getting all anchors");
+
 		return anchorRepo.findAll()
 				.map(anchor -> EntityModelConversion.toModelAnchor(anchor))
 	   	     	.onErrorResume(e -> { 
@@ -130,10 +134,11 @@ public class AnchorResource extends ProtectedResource
      * @return Returns a status of 201 if the anchor was added, or a status of 409 if the anchor already exists for 
      * a specific owner.
      */
-    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)   
+    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<Void> addAnchor(@RequestBody Anchor anchor) 
+    public Mono<Void> addAnchor(@RequestBody Anchor anchor)
     {
+    	log.info("Adding anchor for owner {}", anchor.getOwner());
 
     	try
     	{
@@ -148,7 +153,10 @@ public class AnchorResource extends ProtectedResource
 					.flatMap(anchors -> 
 					{
 						if (!anchors.isEmpty())
+						{
+							log.error("Anchor for owner {} already exists", anchor.getOwner());
 							return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT));
+						}
 						
 			    		try
 			    		{
@@ -181,9 +189,10 @@ public class AnchorResource extends ProtectedResource
      * @param ids List of ids to delete from the system.
      * @return Status of 200 if the anchors were deleted successfully.
      */
-    @DeleteMapping(value="ids/{ids}")   
+    @DeleteMapping(value="ids/{ids}")
     public Mono<Void> removeAnchorsByIds(@PathVariable("ids")  String ids)
     {
+    	log.info("Removing anchors by ids {}", ids);
     	final String[] idArray = ids.split(",");
     	final List<Long> idList = new ArrayList<>();
 
@@ -203,9 +212,10 @@ public class AnchorResource extends ProtectedResource
      * @param owner The owner to delete anchor from.
      * @return Status of 200 if the anchors were deleted successfully.
      */
-    @DeleteMapping(value="{owner}")  
+    @DeleteMapping(value="{owner}")
     public Mono<Void> removeAnchorsByOwner(@PathVariable("owner") String owner)
     {
+    	log.info("Removing anchors for owner {}", owner);
 		return anchorRepo.deleteByOwnerIgnoreCase(owner)
      	.onErrorResume(e -> { 
     		log.error("Error removing anchors by owner.", e);

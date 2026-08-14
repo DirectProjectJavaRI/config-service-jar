@@ -10,7 +10,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
-
 import org.nhindirect.config.BaseTestPlan;
 import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.Address;
@@ -18,10 +17,8 @@ import org.nhindirect.config.model.Domain;
 import org.nhindirect.config.model.EntityStatus;
 import org.nhindirect.config.repository.AddressRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -54,33 +51,39 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			
 			if (domainName != null && !domainName.isEmpty())
 			{
-				
-				
+
+
 				final Domain domain = new Domain();
 				domain.setDomainName(domainName);
 				domain.setStatus(EntityStatus.ENABLED);
-				
-				final HttpEntity<Domain> requestEntity = new HttpEntity<>(domain);
-				testRestTemplate.exchange("/domain", HttpMethod.PUT, requestEntity, Void.class);
-				
+
+				webClient.put()
+					.uri(uriBuilder -> uriBuilder.path("/domain").build())
+					.bodyValue(domain)
+					.retrieve().toBodilessEntity().block();
+
 				if (addAddress != null)
 					addAddress.setDomainName(domainName);
 			}
-			
+
 			if (addAddress != null)
 			{
-				HttpEntity<Address> requestEntity = new HttpEntity<Address>(addAddress);
-				ResponseEntity<Void> resp = testRestTemplate.exchange("/address", HttpMethod.PUT, requestEntity, Void.class);
-				if (resp.getStatusCodeValue() != 201)
-					throw new HttpClientErrorException(resp.getStatusCode());
+				final ResponseEntity<Void> resp = webClient.put()
+					.uri(uriBuilder -> uriBuilder.path("/address").build())
+					.bodyValue(addAddress)
+					.retrieve().toBodilessEntity().block();
+
+				if (resp.getStatusCode().value() != 201)
+					throw new WebClientResponseException(resp.getStatusCode().value(), resp.getStatusCode().toString(), null, null, null);
 			}
-			
-			final ResponseEntity<?> getAddresses = testRestTemplate.exchange("/address/" + getAddressNameToRemove(), HttpMethod.DELETE, null, 
-					Void.class);
-			
-			
-			if (getAddresses.getStatusCodeValue() != 200)
-				throw new HttpClientErrorException(getAddresses.getStatusCode());
+
+			final ResponseEntity<Void> getAddresses = webClient.delete()
+				.uri(uriBuilder -> uriBuilder.path("/address/{addr}").build(getAddressNameToRemove()))
+				.retrieve().toBodilessEntity().block();
+
+
+			if (getAddresses.getStatusCode().value() != 200)
+				throw new WebClientResponseException(getAddresses.getStatusCode().value(), getAddresses.getStatusCode().toString(), null, null, null);
 
 			doAssertions();
 		}
@@ -171,11 +174,11 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(404, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(404, ex.getStatusCode().value());
 			}
 		}.perform();
 	}		
@@ -235,11 +238,11 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}	
@@ -296,11 +299,11 @@ public class AddressResource_removeAddressTest  extends SpringBaseTest
 			}
 			
 			@Override
-			protected void assertException(Exception exception) throws Exception 
+			protected void assertException(Exception exception) throws Exception
 			{
-				assertTrue(exception instanceof HttpClientErrorException);
-				HttpClientErrorException ex = (HttpClientErrorException)exception;
-				assertEquals(500, ex.getRawStatusCode());
+				assertTrue(exception instanceof WebClientResponseException);
+				WebClientResponseException ex = (WebClientResponseException)exception;
+				assertEquals(500, ex.getStatusCode().value());
 			}
 		}.perform();
 	}			

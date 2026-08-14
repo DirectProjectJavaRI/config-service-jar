@@ -13,16 +13,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import org.nhindirect.config.BaseTestPlan;
-import org.nhindirect.config.SpringBaseTest;
 import org.nhindirect.config.model.CertPolicyGroup;
 import org.nhindirect.config.repository.CertPolicyGroupRepository;
+import org.nhindirect.config.SpringBaseTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import reactor.core.publisher.Mono;
 
@@ -73,38 +71,39 @@ public class CertPolicyResource_updateGroupAttributesTest extends SpringBaseTest
 			
 			@Override
 			protected void performInner() throws Exception
-			{				
-				
+			{
+
 				final Collection<CertPolicyGroup> groupsToAdd = getGroupsToAdd();
-				
+
 				if (groupsToAdd != null)
 				{
 					groupsToAdd.forEach(addGroup->
 					{
-						final HttpEntity<CertPolicyGroup> requestEntity = new HttpEntity<>(addGroup);
-						final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups", HttpMethod.PUT, requestEntity, Void.class);
-						if (resp.getStatusCodeValue() != 201)
+						final ResponseEntity<Void> resp = webClient.put()
+							.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups").build())
+							.bodyValue(addGroup)
+							.retrieve().toBodilessEntity().block();
+						if (resp.getStatusCode().value() != 201)
 							throw new HttpClientErrorException(resp.getStatusCode());
-					});	
+					});
 				}
-				
-				final HttpHeaders headers = new HttpHeaders();
-				headers.setContentType(MediaType.APPLICATION_JSON);
-				final HttpEntity<String> requestEntity = new HttpEntity<>(getUpdateGroupAttributes(), headers);
-				final ResponseEntity<Void> resp = testRestTemplate.exchange("/certpolicy/groups/{group}/groupAttributes", 
-						HttpMethod.POST, requestEntity, Void.class,
-						getGroupToUpdate());
 
-				if (resp.getStatusCodeValue() != 204)
+				final ResponseEntity<Void> resp = webClient.post()
+					.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups/{group}/groupAttributes").build(getGroupToUpdate()))
+					.contentType(MediaType.APPLICATION_JSON)
+					.bodyValue(getUpdateGroupAttributes())
+					.retrieve().toBodilessEntity().block();
+
+				if (resp.getStatusCode().value() != 204)
 					throw new HttpClientErrorException(resp.getStatusCode());
-				
-				
-				final ResponseEntity<CertPolicyGroup> getGroup = testRestTemplate.exchange("/certpolicy/groups/{group}", 
-						HttpMethod.GET, null, CertPolicyGroup.class,
-						getGroupUpdatedName());
+
+
+				final ResponseEntity<CertPolicyGroup> getGroup = webClient.get()
+					.uri(uriBuilder -> uriBuilder.path("/certpolicy/groups/{group}").build(getGroupUpdatedName()))
+					.retrieve().toEntity(CertPolicyGroup.class).block();
 
 				doAssertions(getGroup.getBody());
-				
+
 			}
 				
 			protected void doAssertions(CertPolicyGroup group) throws Exception
@@ -162,11 +161,11 @@ public class CertPolicyResource_updateGroupAttributesTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(404, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(404, ex.getStatusCode().value());
 				}
 			}.perform();
 		}		
@@ -220,11 +219,11 @@ public class CertPolicyResource_updateGroupAttributesTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
@@ -282,11 +281,11 @@ public class CertPolicyResource_updateGroupAttributesTest extends SpringBaseTest
 				}
 				
 				@Override
-				protected void assertException(Exception exception) throws Exception 
+				protected void assertException(Exception exception) throws Exception
 				{
-					assertTrue(exception instanceof HttpClientErrorException);
-					HttpClientErrorException ex = (HttpClientErrorException)exception;
-					assertEquals(500, ex.getRawStatusCode());
+					assertTrue(exception instanceof WebClientResponseException);
+					WebClientResponseException ex = (WebClientResponseException)exception;
+					assertEquals(500, ex.getStatusCode().value());
 				}
 			}.perform();
 		}	
