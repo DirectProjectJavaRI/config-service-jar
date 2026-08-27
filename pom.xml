@@ -18,7 +18,7 @@
    <parent>
 	   <groupId>org.springframework.boot</groupId>
 	   <artifactId>spring-boot-dependencies</artifactId>
-	   <version>4.1.0</version>
+	   <version>4.1.1</version>
 	   <relativePath />
    </parent>
     <developers>
@@ -57,17 +57,17 @@
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>config-store</artifactId>
-			<version>9.0.0</version>
+			<version>9.0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>config-model</artifactId>
-			<version>9.0.0</version>
+			<version>9.0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>org.nhind</groupId>
 			<artifactId>direct-common</artifactId>
-			<version>9.0.0</version>
+			<version>9.0.1-SNAPSHOT</version>
 		</dependency>											  
 	      <dependency>
 			<groupId>commons-net</groupId>
